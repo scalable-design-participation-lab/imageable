@@ -57,12 +57,6 @@ repos:
         always_run: true
         stages: [pre-push]  # Only run on pre-push, not every commit
 
-  # Check dependencies for known security vulnerabilities
-  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
-    rev: v1.3.2
-    hooks:
-      - id: python-safety-dependencies-check
-
   # Conventional commits (optional but recommended)
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.6.0

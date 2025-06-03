@@ -10,10 +10,10 @@ An image processing library built with modern Python tooling.
    ```bash
    # On macOS/Linux
    curl -LsSf https://astral.sh/uv/install.sh | sh
-   
+
    # On Windows
    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   
+
    # Or with pip
    pip install uv
    ```
@@ -22,7 +22,7 @@ An image processing library built with modern Python tooling.
    ```bash
    git clone https://github.com/yourusername/imageable.git
    cd imageable
-   
+
    # Install all dependencies (including dev dependencies)
    uv sync --group dev
    ```
@@ -114,4 +114,4 @@ See [LICENSE](LICENSE) file for details.
 
 - Khoi Ngo - ngo.kho@northeastern.edu
 - Uriel Legaria - fill@gmail.com
-- Carlos Sandoval Olascoaga 
+- Carlos Sandoval Olascoaga

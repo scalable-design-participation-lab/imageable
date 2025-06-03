@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Khoi Ngo", email = "ngo.kho@northeastern.edu" }, 
+    { name = "Khoi Ngo", email = "ngo.kho@northeastern.edu" },
     { name = "Uriel Legaria", email = "fill@gmail.com" }
 ]
 requires-python = ">=3.13"
