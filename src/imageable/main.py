@@ -1,4 +1,4 @@
-from typing import List, Optional
+
 import numpy as np
 
 
@@ -26,7 +26,7 @@ def add_numbers(a: float, b: float) -> float:
     return a + b
 
 
-def process_array(arr: List[float], multiplier: Optional[float] = None) -> np.ndarray:
+def process_array(arr: list[float], multiplier: float | None = None) -> np.ndarray:
     """
     Process an array of numbers.
 
@@ -84,5 +84,6 @@ class Calculator:
             If b is zero.
         """
         if b == 0:
-            raise ValueError("Cannot divide by zero")
+            error = "Cannot divide by zero"
+            raise ValueError(error)
         return round(a / b, self.precision)

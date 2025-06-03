@@ -1,8 +1,9 @@
 """Tests for main module."""
 
-import pytest
 import numpy as np
-from imageable.main import add_numbers, process_array, Calculator
+import pytest
+
+from imageable.main import Calculator, add_numbers, process_array
 
 
 def test_add_numbers() -> None:
