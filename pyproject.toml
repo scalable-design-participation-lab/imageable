@@ -141,8 +141,6 @@ ignore = [
     "D100", # Missing docstring in public module
     "D104", # Missing docstring in public package
     "D107", # Missing docstring in __init__
-    "ANN101", # Missing type annotation for self
-    "ANN102", # Missing type annotation for cls
     "S101", # Use of assert detected (allow for tests)
     "COM812", # Trailing comma missing (handled by formatter)
     "ISC001", # Single line implicit string concatenation (handled by formatter)
