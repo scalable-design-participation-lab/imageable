@@ -2,7 +2,7 @@
 
 An image processing library built with modern Python tooling.
 
-[![Tests](https://github.com/scalable-design-participation-lab/imageable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/USERNAME/REPO/actions/workflows/ci.yml)
+[![Tests](https://github.com/scalable-design-participation-lab/imageable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/scalable-design-participation-lab/imageable/actions/workflows/ci.yml)
 
 ## Installation
 
