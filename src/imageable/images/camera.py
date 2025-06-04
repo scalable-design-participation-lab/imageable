@@ -35,15 +35,18 @@ class CameraParameters:
     height:int = 640
 
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         
         if(self.width > 640):
-            raise ValueError(f"width ({self.width}) cannot be greater than 640")
+            msg = f"width ({self.width}) cannot be greater than 640"
+            raise ValueError(msg)
         
         if(self.height > 640):
-            raise ValueError(f"width ({self.width}) cannot be greater than 640")
+            msg = f"width ({self.height}) cannot be greater than 640"
+            raise ValueError(msg)
         if(self.fov >120 or self.fov < 10):
-            raise ValueError(f"FOV values should be in the interval (0, 120)")
+            msg = f"FOV values should be in the interval (0, 120)"
+            raise ValueError(msg)
     
     def to_dict(self)->dict[str, float|int|str]:
         """
