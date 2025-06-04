@@ -27,10 +27,11 @@ class CameraParameters:
     height
         Output image height. Must not exceed 640. Default is 640.
     """
+
     #Longitude
     longitude: float
     #Latitude
-    latitude: float 
+    latitude: float
     # Field of view
     fov: float = 90
     # camera heading
