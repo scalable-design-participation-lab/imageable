@@ -19,21 +19,21 @@ def test_valid_camera_parameters():
 # Test case where the user inputs invalid width
 # in Camera parameters
 def test_invalid_width():
-    with pytest.raises(ValueError, match="width .* cannot be greater than 640"):
+    with pytest.raises(ValueError, match="width cannot be greater than 640"):
         CameraParameters(fov=90, heading=0, pitch=0, width=1000, height=530)
 
 
 # Test case where the user inputs invalid height
 # in camera paremters
 def test_invalid_height():
-    with pytest.raises(ValueError, match="height .* cannot be greater than 640"):
+    with pytest.raises(ValueError, match="height cannot be greater than 640"):
         CameraParameters(fov=90, heading=0, pitch=0, width=640, height=1000)
 
 
 # Test case where the user inputs invalid fov in
 # camera parameters
 def test_invalid_fov():
-    with pytest.raises(ValueError, match="FOV .* should be between 10 and 120"):
+    with pytest.raises(ValueError, match="FOV should be between 10 and 120"):
         CameraParameters(fov=200, heading=0, pitch=0)
 
 
