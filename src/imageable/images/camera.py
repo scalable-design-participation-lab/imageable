@@ -38,14 +38,15 @@ class CameraParameters:
     def __post_init__(self) -> None:
         """Validate parameter ranges after initialization."""
         if self.width > MAX_DIMENSION:
-            msg = f"width ({self.width}) cannot be greater than 640"
+            msg = "width cannot be greater than 640"
             raise ValueError(msg)
 
         if self.height > MAX_DIMENSION:
-            msg = f"width ({self.height}) cannot be greater than 640"
+            msg = "height cannot be greater than 640"
             raise ValueError(msg)
+
         if self.fov > MAX_FOV or self.fov < MIN_FOV:
-            msg = "FOV values should be in the interval (0, 120)"
+            msg = "FOV should be between 10 and 120"
             raise ValueError(msg)
 
     def to_dict(self) -> dict[str, float | int | str]:
