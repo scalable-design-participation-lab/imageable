@@ -12,6 +12,10 @@ class CameraParameters:
 
     Parameters
     ----------
+    longitude
+        Longitude where the image will be taken.
+    latitude
+        Latitude where the image will be taken.
     fov
         Field of view in degrees. The maximum fov allowed is 120. Default is 90.
     heading
@@ -24,6 +28,10 @@ class CameraParameters:
         Output image height. Must not exceed 640. Default is 640.
     """
 
+    # Longitude
+    longitude: float
+    # Latitude
+    latitude: float
     # Field of view
     fov: float = 90
     # camera heading
