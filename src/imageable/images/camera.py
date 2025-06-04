@@ -4,6 +4,7 @@ MAX_DIMENSION = 640
 MIN_FOV = 10
 MAX_FOV = 120
 
+
 @dataclass
 class CameraParameters:
     """
@@ -23,32 +24,31 @@ class CameraParameters:
         Output image height. Must not exceed 640. Default is 640.
     """
 
-    #Field of view
-    fov:float = 90
-    #camera heading
-    heading:float = 0
-    #pitch
-    pitch:float = 0
-    #img width
-    width:int = 640
-    #img height
-    height:int = 640
-
+    # Field of view
+    fov: float = 90
+    # camera heading
+    heading: float = 0
+    # pitch
+    pitch: float = 0
+    # img width
+    width: int = 640
+    # img height
+    height: int = 640
 
     def __post_init__(self) -> None:
         """Validate parameter ranges after initialization."""
-        if(self.width > MAX_DIMENSION):
+        if self.width > MAX_DIMENSION:
             msg = f"width ({self.width}) cannot be greater than 640"
             raise ValueError(msg)
 
-        if(self.height > MAX_DIMENSION):
+        if self.height > MAX_DIMENSION:
             msg = f"width ({self.height}) cannot be greater than 640"
             raise ValueError(msg)
-        if(self.fov >MAX_FOV or self.fov < MIN_FOV):
+        if self.fov > MAX_FOV or self.fov < MIN_FOV:
             msg = "FOV values should be in the interval (0, 120)"
             raise ValueError(msg)
 
-    def to_dict(self)->dict[str, float|int|str]:
+    def to_dict(self) -> dict[str, float | int | str]:
         """
         Convert camera parameters to a dictionary.
 
@@ -58,9 +58,3 @@ class CameraParameters:
             Dictionary containing camera parameters.
         """
         return asdict(self)
-
-
-
-
-
-
