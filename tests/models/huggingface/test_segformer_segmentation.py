@@ -1,7 +1,6 @@
-import pytest
-from pathlib import Path
-from PIL import Image
 import numpy as np
+import pytest
+from PIL import Image
 
 from imageable.models.huggingface.segformer_segmentation import (
     SegformerSegmentationWrapper,
@@ -29,7 +28,7 @@ def test_predict_output_shape(wrapper):
 
     assert isinstance(prediction, np.ndarray)
     assert prediction.shape == (640, 640)
-    assert prediction.dtype == np.int64 or prediction.dtype == np.int32
+    assert prediction.dtype in (np.int64, np.int32)
 
 
 def test_remap_labels(wrapper):

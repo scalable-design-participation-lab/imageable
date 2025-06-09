@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any
+from typing import Any
 
 
 class HuggingFaceModelWrapper(ABC):
@@ -9,7 +9,7 @@ class HuggingFaceModelWrapper(ABC):
     """
 
     @abstractmethod
-    def __init__(self, model_name: str, device: Optional[str] = None):
+    def __init__(self, model_name: str, device: str | None = None) -> None:
         """
         Initialize the model wrapper with the specified model name and device.
 
@@ -20,14 +20,10 @@ class HuggingFaceModelWrapper(ABC):
         device : str, optional
             The device to load the model onto (e.g., 'cpu' or 'cuda').
         """
-        pass
 
     @abstractmethod
-    def load_model(self):
-        """
-        Load the model from Hugging Face or local cache.
-        """
-        pass
+    def load_model(self) -> None:
+        """Load the model from Hugging Face or local cache."""
 
     @abstractmethod
     def predict(self, inputs: Any) -> Any:
@@ -49,7 +45,6 @@ class HuggingFaceModelWrapper(ABC):
         RuntimeError
             If the model has not been loaded.
         """
-        pass
 
     @abstractmethod
     def is_loaded(self) -> bool:
@@ -61,4 +56,3 @@ class HuggingFaceModelWrapper(ABC):
         bool
             True if the model is loaded and ready to predict; False otherwise.
         """
-        pass

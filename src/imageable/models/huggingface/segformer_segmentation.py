@@ -1,71 +1,88 @@
-from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
-from PIL import Image
-import torch
-import numpy as np
-from typing import Optional, Any
-from .base import HuggingFaceModelWrapper
 import json
 from pathlib import Path
+from typing import Any, cast
+
+import numpy as np
+import torch
+from PIL import Image
+from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
+
+from .base import HuggingFaceModelWrapper
 
 
 class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
     """
-    A wrapper for the SegFormer semantic segmentation model from Hugging Face.
+    A wrapper for the SegFormer semantic segmentation model from Hugging Face Transformers.
 
-    This class loads a pretrained SegFormer model and its associated image processor,
-    performs inference on PIL images, supports label remapping, and colorizes
-    segmentation maps using a predefined ADE20K palette.
+    This class encapsulates loading, running inference, label remapping, and visualization
+    (palette colorization) for semantic segmentation tasks using SegFormer.
 
-    Parameters
+    Attributes
     ----------
     model_name : str
-        The Hugging Face model identifier (e.g., "nvidia/segformer-b5-finetuned-ade-640-640").
-    device : Optional[str], default=None
-        The device to use for inference. Automatically resolves to "cuda", "mps", or "cpu" if not specified.
+        The Hugging Face model identifier (e.g.,
+        "nvidia/segformer-b5-finetuned-ade-640-640").
+    device : str
+        The compute device used for inference. Automatically detected if not provided.
+    model : Optional[SegformerForSemanticSegmentation]
+        The actual pretrained model object loaded via Hugging Face Transformers.
+    processor : Optional[AutoImageProcessor]
+        The associated processor for pre-processing input images.
+    _ade_palette : list[int]
+        The ADE20K RGB color palette used for segmentation visualization.
     """
 
-    def __init__(self, model_name: str, device: Optional[str] = None):
+    def __init__(self, model_name: str, device: str | None = None) -> None:
+        """
+        Initialize the SegformerSegmentationWrapper.
+
+        Parameters
+        ----------
+        model_name : str
+            The Hugging Face model ID or local path.
+        device : Optional[str]
+            The target device ("cuda", "mps", or "cpu"). If None,
+            it will be auto-detected.
+        """
         self.model_name = model_name
         self.device = device or self._resolve_device()
-        self.model = None
-        self.processor = None
-        self._ade_palette = self._load_palette_from_json(
-            "src/imageable/assets/ade20k_palette.json"
-        )
+        self.model: SegformerForSemanticSegmentation | None = None
+        self.processor: AutoImageProcessor | None = None
+        self._ade_palette: list[int] = self._load_palette_from_json("src/imageable/assets/ade20k_palette.json")
 
-    def load_model(self):
+    def load_model(self) -> None:
         """
-        Loads the pretrained SegFormer model and associated image processor from Hugging Face.
+        Load both the image processor and the SegFormer model onto the
+        selected device.
         """
         self.processor = AutoImageProcessor.from_pretrained(self.model_name)
         self.model = SegformerForSemanticSegmentation.from_pretrained(self.model_name)
-        # Move model to the specified devic
-        self.model = self.model.to(self.device)  # type: ignore
+        self.model.to(self.device)
 
     def is_loaded(self) -> bool:
         """
-        Checks if the model and processor have been successfully loaded.
+        Check whether the processor and model are successfully loaded.
 
         Returns
         -------
         bool
-            True if both model and processor are loaded, False otherwise.
+            True if both components are loaded, False otherwise.
         """
         return self.model is not None and self.processor is not None
 
-    def predict(self, image: Image.Image) -> np.ndarray:
+    def predict(self, image: Image.Image) -> np.ndarray[Any, np.dtype[np.int64]]:
         """
-        Runs semantic segmentation on an input image.
+        Perform semantic segmentation on a single image.
 
         Parameters
         ----------
         image : PIL.Image.Image
-            The input image in RGB format.
+            Input image in RGB format.
 
         Returns
         -------
         np.ndarray
-            A 2D array of predicted class indices (same spatial dimensions as the input image).
+            A 2D array of class indices corresponding to the segmentation map.
         """
         if not self.is_loaded():
             self.load_model()
@@ -78,76 +95,81 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
 
         resized_logits = torch.nn.functional.interpolate(
             logits,
-            size=image.size[::-1],  # (width, height)
+            size=image.size[::-1],
             mode="bicubic",
             align_corners=False,
         )
 
         prediction = torch.argmax(resized_logits, dim=1).squeeze().cpu().numpy()
-        return prediction
+        return cast("np.ndarray[Any, np.dtype[np.int64]]", prediction)
 
-    def remap_labels(self, seg: np.ndarray, mapping: dict) -> np.ndarray:
+    def remap_labels(
+        self,
+        seg: np.ndarray[Any, np.dtype[np.int_]],
+        mapping: dict[int, int],
+    ) -> np.ndarray[Any, np.dtype[np.int_]]:
         """
-        Remaps segmentation class indices using a provided dictionary.
+        Remap segmentation class IDs based on a custom mapping.
 
         Parameters
         ----------
         seg : np.ndarray
             A 2D segmentation map of class indices.
         mapping : dict
-            A mapping of source indices to target indices (e.g., {2: 1, 3: 2}).
+            Dictionary mapping source class indices to target indices.
 
         Returns
         -------
         np.ndarray
-            The remapped segmentation array.
+            A remapped version of the segmentation map.
         """
         return self._remap_labels(seg, mapping)
 
-    def colorize(self, seg: np.ndarray) -> Image.Image:
+    def colorize(self, seg: np.ndarray[Any, np.dtype[np.int_]]) -> Image.Image:
         """
-        Applies a color palette to a segmentation map to create a colorized image.
+        Convert a segmentation map into a colorized image using the ADE palette.
 
         Parameters
         ----------
         seg : np.ndarray
-            A 2D array of class indices.
+            A 2D array of segmentation class indices.
 
         Returns
         -------
         PIL.Image.Image
-            A colorized segmentation image in "P" mode.
+            A color image in mode "P" using the predefined ADE palette.
         """
         return self._apply_palette(seg, self._ade_palette)
 
-    # --- Private helpers ---
-
     def _resolve_device(self) -> str:
         """
-        Detects the best available device ("cuda", "mps", or "cpu").
+        Automatically detect the best available compute device.
 
         Returns
         -------
         str
-            The selected device identifier.
+            "cuda", "mps", or "cpu"
         """
         if torch.cuda.is_available():
             return "cuda"
-        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
             return "mps"
-        else:
-            return "cpu"
+        return "cpu"
 
-    def _remap_labels(self, seg: np.ndarray, mapping: dict) -> np.ndarray:
+    def _remap_labels(
+        self,
+        seg: np.ndarray[Any, np.dtype[np.int_]],
+        mapping: dict[int, int],
+    ) -> np.ndarray[Any, np.dtype[np.int_]]:
         """
-        Internal utility to remap segmentation labels.
+        Remap class labels.
 
         Parameters
         ----------
         seg : np.ndarray
-            Input segmentation map.
+            Segmentation result to be remapped.
         mapping : dict
-            Dictionary mapping old labels to new labels.
+            Dictionary of class index mappings.
 
         Returns
         -------
@@ -159,21 +181,25 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
             remapped[seg == src] = tgt
         return remapped
 
-    def _apply_palette(self, seg: np.ndarray, palette: list) -> Image.Image:
+    def _apply_palette(
+        self,
+        seg: np.ndarray[Any, np.dtype[np.int_]],
+        palette: list[int],
+    ) -> Image.Image:
         """
-        Applies a custom color palette to a label image.
+        Apply a color palette to a segmentation map.
 
         Parameters
         ----------
         seg : np.ndarray
-            Segmentation map of class indices.
-        palette : list
-            Flat list of RGB values for each class.
+            2D label map.
+        palette : list[int]
+            Flat RGB color palette list (e.g., ADE20K style).
 
         Returns
         -------
         PIL.Image.Image
-            Colorized image in palette mode.
+            Colorized image using mode "P".
         """
         img = Image.fromarray(seg.astype("uint8"), mode="P")
         img.putpalette(palette)
@@ -181,7 +207,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
 
     def _load_palette_from_json(self, path: str) -> list[int]:
         """
-        Loads the ADE20K color palette from a JSON file.
+        Load the ADE20K color palette from a JSON file.
 
         Parameters
         ----------
@@ -193,5 +219,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         list[int]
             The loaded RGB color palette.
         """
-        with open(Path(path), "r", encoding="utf-8") as f:
-            return json.load(f)
+        path_obj = Path(path)
+        with path_obj.open(encoding="utf-8") as f:
+            data = json.load(f)
+        return list(map(int, data))
