@@ -27,9 +27,7 @@ def add_numbers(a: float, b: float) -> float:
     return a + b
 
 
-def process_array(
-    arr: list[float], multiplier: float | None = None
-) -> np.ndarray[Any, np.dtype[np.float64]]:
+def process_array(arr: list[float], multiplier: float | None = None) -> np.ndarray[Any, np.dtype[np.float64]]:
     """
     Process an array of numbers.
 
