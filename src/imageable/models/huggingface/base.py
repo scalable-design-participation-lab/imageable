@@ -5,6 +5,7 @@ from imageable.models.base import BaseModelWrapper
 
 
 class HuggingFaceModelWrapper(BaseModelWrapper):
+
     """
     Abstract base class for Hugging Face model wrappers.
     Provides a consistent interface for loading and using models.
@@ -90,3 +91,4 @@ class HuggingFaceModelWrapper(BaseModelWrapper):
         Any
             Processed outputs in a more usable format.
         """
+

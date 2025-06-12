@@ -69,7 +69,7 @@ exclude_lines = [
 # Ruff configuration
 [tool.ruff]
 target-version = "py313"
-line-length = 88
+line-length = 120
 exclude = [
     ".bzr",
     ".direnv",
@@ -144,6 +144,8 @@ select = [
 ]
 
 ignore = [
+    "D205", # blank line
+    "ANN401", # Allow use of any
     "D100", # Missing docstring in public module
     "D104", # Missing docstring in public package
     "D107", # Missing docstring in __init__
@@ -188,6 +190,7 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 show_error_codes = true
+strict = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
