@@ -4,7 +4,6 @@ import os.path as osp
 import shutil
 import signal
 import subprocess
-import threading
 import time
 from timeit import default_timer as timer
 
@@ -12,7 +11,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn.functional as F
 from skimage import io
 from tensorboardX import SummaryWriter
 
@@ -20,7 +18,7 @@ from .config import C, M
 from .utils import recursive_to
 
 
-class Trainer(object):
+class Trainer:
     def __init__(self, device, model, optimizer, train_loader, val_loader, out):
         self.device = device
 
@@ -195,7 +193,7 @@ class Trainer(object):
 
     def _write_metrics(self, size, total_loss, prefix, do_print=False):
         for i, metrics in enumerate(self.metrics):
-            for label, metric in zip(self.loss_labels, metrics):
+            for label, metric in zip(self.loss_labels, metrics, strict=False):
                 self.writer.add_scalar(f"{prefix}/{i}/{label}", metric / size, self.iteration)
             if i == 0 and do_print:
                 csv_str = f"{self.epoch:03}/{self.iteration * self.batch_size:07}," + ",".join(
@@ -217,7 +215,7 @@ class Trainer(object):
 
         mask_result = result["jmap"][i].cpu().numpy()
         mask_target = target["jmap"][i].cpu().numpy()
-        for ch, (ia, ib) in enumerate(zip(mask_target, mask_result)):
+        for ch, (ia, ib) in enumerate(zip(mask_target, mask_result, strict=False)):
             imshow(ia), plt.savefig(f"{prefix}_mask_{ch}a.jpg"), plt.close()
             imshow(ib), plt.savefig(f"{prefix}_mask_{ch}b.jpg"), plt.close()
 
@@ -229,7 +227,7 @@ class Trainer(object):
         def draw_vecl(lines, sline, juncs, junts, fn):
             imshow(img)
             if len(lines) > 0 and not (lines[0] == 0).all():
-                for i, ((a, b), s) in enumerate(zip(lines, sline)):
+                for i, ((a, b), s) in enumerate(zip(lines, sline, strict=False)):
                     if i > 0 and (lines[i] == lines[0]).all():
                         break
                     plt.plot([a[1], b[1]], [a[0], b[0]], c=c(s), linewidth=4)

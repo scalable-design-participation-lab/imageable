@@ -30,7 +30,7 @@ def plambda(x1, y1, x2, y2, x, y):
 
 def postprocess(lines, scores, threshold=0.01, tol=1e9, do_clip=False):
     nlines, nscores = [], []
-    for (p, q), score in zip(lines, scores):
+    for (p, q), score in zip(lines, scores, strict=False):
         start, end = 0, 1
         for a, b in nlines:
             if (

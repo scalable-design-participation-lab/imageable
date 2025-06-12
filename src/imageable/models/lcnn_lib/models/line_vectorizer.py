@@ -1,11 +1,6 @@
-import itertools
-import random
-from collections import defaultdict
-
-import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ..config import M
 
@@ -157,8 +152,7 @@ class LineVectorizer(nn.Module):
                 K = min(int((jmap > M.eval_junc_thres).float().sum().item()), max_K)
             else:
                 K = min(int(N * 2 + 2), max_K)
-            if K < 2:
-                K = 2
+            K = max(K, 2)
             device = jmap.device
 
             # index: [N_TYPE, K]

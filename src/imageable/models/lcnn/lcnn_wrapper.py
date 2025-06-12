@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import skimage.io
@@ -8,14 +7,12 @@ import skimage.transform
 import torch
 import yaml
 
-
+from ..base import BaseModelWrapper
 from ..lcnn_lib import models as lcnn_models
 from ..lcnn_lib.config import C, M
 from ..lcnn_lib.models.line_vectorizer import LineVectorizer
 from ..lcnn_lib.models.multitask_learner import MultitaskHead, MultitaskLearner
 from ..lcnn_lib.postprocess import postprocess
-
-from ..base import BaseModelWrapper
 
 
 class LCNNWrapper(BaseModelWrapper):
@@ -115,7 +112,7 @@ class LCNNWrapper(BaseModelWrapper):
         dict
             Configuration dictionary.
         """
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = yaml.safe_load(f)
 
         # Update global configuration objects used by L-CNN

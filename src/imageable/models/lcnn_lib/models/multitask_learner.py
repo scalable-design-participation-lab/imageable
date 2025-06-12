@@ -1,9 +1,9 @@
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ..config import M
 

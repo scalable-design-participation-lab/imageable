@@ -5,9 +5,8 @@ Use lr=0.01 for current version
 (c) YANG, Wei
 """
 
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 __all__ = ["HourglassNet", "hg"]
 
@@ -60,7 +59,7 @@ class Hourglass(nn.Module):
 
     def _make_residual(self, block, num_blocks, planes):
         layers = []
-        for i in range(0, num_blocks):
+        for i in range(num_blocks):
             layers.append(block(planes * block.expansion, planes))
         return nn.Sequential(*layers)
 

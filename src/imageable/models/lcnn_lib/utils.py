@@ -1,14 +1,11 @@
-import math
-import os.path as osp
 import multiprocessing
 from timeit import default_timer as timer
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 
 
-class benchmark(object):
+class benchmark:
     def __init__(self, msg, enable=True, fmt="%0.3g"):
         self.msg = msg
         self.fmt = fmt

@@ -6,18 +6,19 @@
 Improved dictionary access through dot notation with additional tools.
 """
 
-import string
-import sys
+import builtins
+import copy
 import json
 import re
-import copy
-from keyword import kwlist
+import string
+import sys
 import warnings
+from keyword import kwlist
 
 try:
-    from collections.abc import Iterable, Mapping, Callable
+    from collections.abc import Callable, Iterable, Mapping
 except ImportError:
-    from collections import Iterable, Mapping, Callable
+    from collections.abc import Callable, Iterable, Mapping
 
 yaml_support = True
 
@@ -25,7 +26,7 @@ try:
     import yaml
 except ImportError:
     try:
-        import ruamel.yaml as yaml
+        from ruamel import yaml
     except ImportError:
         yaml = None
         yaml_support = False
@@ -33,9 +34,9 @@ except ImportError:
 if sys.version_info >= (3, 0):
     basestring = str
 else:
-    from io import open
+    pass
 
-__all__ = ["Box", "ConfigBox", "BoxList", "SBox", "BoxError", "BoxKeyError"]
+__all__ = ["Box", "BoxError", "BoxKeyError", "BoxList", "ConfigBox", "SBox"]
 __author__ = "Chris Griffith"
 __version__ = "3.2.4"
 
@@ -69,7 +70,7 @@ class BoxKeyError(BoxError, KeyError, AttributeError):
 def _to_json(obj, filename=None, encoding="utf-8", errors="strict", **json_kwargs):
     json_dump = json.dumps(obj, ensure_ascii=False, **json_kwargs)
     if filename:
-        with open(filename, "w", encoding=encoding, errors=errors) as f:
+        with builtins.open(filename, "w", encoding=encoding, errors=errors) as f:
             f.write(json_dump if sys.version_info >= (3, 0) else json_dump.decode("utf-8"))
     else:
         return json_dump
@@ -77,7 +78,7 @@ def _to_json(obj, filename=None, encoding="utf-8", errors="strict", **json_kwarg
 
 def _from_json(json_string=None, filename=None, encoding="utf-8", errors="strict", multiline=False, **kwargs):
     if filename:
-        with open(filename, "r", encoding=encoding, errors=errors) as f:
+        with builtins.open(filename, encoding=encoding, errors=errors) as f:
             if multiline:
                 data = [
                     json.loads(line.strip(), **kwargs)
@@ -95,7 +96,7 @@ def _from_json(json_string=None, filename=None, encoding="utf-8", errors="strict
 
 def _to_yaml(obj, filename=None, default_flow_style=False, encoding="utf-8", errors="strict", **yaml_kwargs):
     if filename:
-        with open(filename, "w", encoding=encoding, errors=errors) as f:
+        with builtins.open(filename, "w", encoding=encoding, errors=errors) as f:
             yaml.dump(obj, stream=f, default_flow_style=default_flow_style, **yaml_kwargs)
     else:
         return yaml.dump(obj, default_flow_style=default_flow_style, **yaml_kwargs)
@@ -103,7 +104,7 @@ def _to_yaml(obj, filename=None, default_flow_style=False, encoding="utf-8", err
 
 def _from_yaml(yaml_string=None, filename=None, encoding="utf-8", errors="strict", **kwargs):
     if filename:
-        with open(filename, "r", encoding=encoding, errors=errors) as f:
+        with builtins.open(filename, encoding=encoding, errors=errors) as f:
             data = yaml.load(f, **kwargs)
     elif yaml_string:
         data = yaml.load(yaml_string, **kwargs)
@@ -143,10 +144,10 @@ def _safe_attr(attr, camel_killer=False, replacement_char="x"):
     except (ValueError, IndexError):
         pass
     else:
-        out = "{0}{1}".format(replacement_char, out)
+        out = f"{replacement_char}{out}"
 
     if out in kwlist:
-        out = "{0}{1}".format(replacement_char, out)
+        out = f"{replacement_char}{out}"
 
     return re.sub("_+", "_", out)
 
@@ -208,14 +209,14 @@ def _conversion_checks(item, keys, box_config, check_only=False, pre_check=False
             dups = set()
             for x in key_list:
                 if x[1] in seen:
-                    dups.add("{0}({1})".format(x[0], x[1]))
+                    dups.add(f"{x[0]}({x[1]})")
                 seen.add(x[1])
             if box_config["box_duplicates"].startswith("warn"):
-                warnings.warn("Duplicate conversion attributes exist: {0}".format(dups))
+                warnings.warn(f"Duplicate conversion attributes exist: {dups}")
             else:
-                raise BoxError("Duplicate conversion attributes exist: {0}".format(dups))
+                raise BoxError(f"Duplicate conversion attributes exist: {dups}")
     if check_only:
-        return
+        return None
     # This way will be slower for warnings, as it will have double work
     # But faster for the default 'ignore'
     for k in keys:
@@ -297,7 +298,7 @@ class Box(dict):
             else:
                 raise ValueError("First argument must be mapping or iterable")
         elif args:
-            raise TypeError("Box expected at most 1 argument, got {0}".format(len(args)))
+            raise TypeError(f"Box expected at most 1 argument, got {len(args)}")
 
         box_it = kwargs.pop("box_it_up", False)
         for k, v in kwargs.items():
@@ -422,9 +423,9 @@ class Box(dict):
         default_value = self._box_config["default_box_attr"]
         if default_value is self.__class__:
             return self.__class__(__box_heritage=(self, item), **self.__box_config())
-        elif isinstance(default_value, Callable):
+        if isinstance(default_value, Callable):
             return default_value()
-        elif hasattr(default_value, "copy"):
+        if hasattr(default_value, "copy"):
             return default_value.copy()
         return default_value
 
@@ -509,7 +510,7 @@ class Box(dict):
         if key != "_box_config" and self._box_config["frozen_box"] and self._box_config["__created"]:
             raise BoxError("Box is frozen")
         if key in self._protected_keys:
-            raise AttributeError("Key name '{0}' is protected".format(key))
+            raise AttributeError(f"Key name '{key}' is protected")
         if key == "_box_config":
             return object.__setattr__(self, key, value)
         try:
@@ -544,7 +545,7 @@ class Box(dict):
         if item == "_box_config":
             raise BoxError('"_box_config" is protected')
         if item in self._protected_keys:
-            raise AttributeError("Key name '{0}' is protected".format(item))
+            raise AttributeError(f"Key name '{item}' is protected")
         try:
             object.__getattribute__(self, item)
         except AttributeError:
@@ -568,7 +569,7 @@ class Box(dict):
         try:
             item = self[key]
         except KeyError:
-            raise BoxKeyError("{0}".format(key))
+            raise BoxKeyError(f"{key}")
         else:
             del self[key]
             return item
@@ -585,7 +586,7 @@ class Box(dict):
         return key, self.pop(key)
 
     def __repr__(self):
-        return "<Box: {0}>".format(str(self.to_dict()))
+        return f"<Box: {self.to_dict()!s}>"
 
     def __str__(self):
         return str(self.to_dict())
@@ -678,7 +679,7 @@ class Box(dict):
         data = _from_json(json_string, filename=filename, encoding=encoding, errors=errors, **kwargs)
 
         if not isinstance(data, dict):
-            raise BoxError("json data not returned as a dictionary, but rather a {0}".format(type(data).__name__))
+            raise BoxError(f"json data not returned as a dictionary, but rather a {type(data).__name__}")
         return cls(data, **bx_args)
 
     if yaml_support:
@@ -727,7 +728,7 @@ class Box(dict):
                 yaml_string=yaml_string, filename=filename, encoding=encoding, errors=errors, Loader=loader, **kwargs
             )
             if not isinstance(data, dict):
-                raise BoxError("yaml data not returned as a dictionarybut rather a {0}".format(type(data).__name__))
+                raise BoxError(f"yaml data not returned as a dictionarybut rather a {type(data).__name__}")
             return cls(data, **bx_args)
 
 
@@ -789,7 +790,7 @@ class BoxList(list):
         super(BoxList, self).insert(index, p_object)
 
     def __repr__(self):
-        return "<BoxList: {0}>".format(self.to_list())
+        return f"<BoxList: {self.to_list()}>"
 
     def __str__(self):
         return str(self.to_list())
@@ -838,7 +839,7 @@ class BoxList(list):
         """
         if filename and multiline:
             lines = [_to_json(item, filename=False, encoding=encoding, errors=errors, **json_kwargs) for item in self]
-            with open(filename, "w", encoding=encoding, errors=errors) as f:
+            with builtins.open(filename, "w", encoding=encoding, errors=errors) as f:
                 f.write("\n".join(lines).decode("utf-8") if sys.version_info < (3, 0) else "\n".join(lines))
         else:
             return _to_json(self.to_list(), filename=filename, encoding=encoding, errors=errors, **json_kwargs)
@@ -867,7 +868,7 @@ class BoxList(list):
         )
 
         if not isinstance(data, list):
-            raise BoxError("json data not returned as a list, but rather a {0}".format(type(data).__name__))
+            raise BoxError(f"json data not returned as a list, but rather a {type(data).__name__}")
         return cls(data, **bx_args)
 
     if yaml_support:
@@ -916,7 +917,7 @@ class BoxList(list):
                 yaml_string=yaml_string, filename=filename, encoding=encoding, errors=errors, Loader=loader, **kwargs
             )
             if not isinstance(data, list):
-                raise BoxError("yaml data not returned as a listbut rather a {0}".format(type(data).__name__))
+                raise BoxError(f"yaml data not returned as a listbut rather a {type(data).__name__}")
             return cls(data, **bx_args)
 
     def box_it_up(self):
@@ -955,7 +956,8 @@ class ConfigBox(Box):
 
     def __getattr__(self, item):
         """Config file keys are stored in lower case, be a little more
-        loosey goosey"""
+        loosey goosey
+        """
         try:
             return super(ConfigBox, self).__getattr__(item)
         except AttributeError:
@@ -1051,7 +1053,7 @@ class ConfigBox(Box):
         return self.float(item, default)
 
     def __repr__(self):
-        return "<ConfigBox: {0}>".format(str(self.to_dict()))
+        return f"<ConfigBox: {self.to_dict()!s}>"
 
 
 class SBox(Box):
@@ -1087,4 +1089,4 @@ class SBox(Box):
             return self.to_yaml()
 
     def __repr__(self):
-        return "<ShorthandBox: {0}>".format(str(self.to_dict()))
+        return f"<ShorthandBox: {self.to_dict()!s}>"
