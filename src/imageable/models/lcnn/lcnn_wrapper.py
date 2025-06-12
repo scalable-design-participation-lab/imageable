@@ -220,20 +220,18 @@ class LCNNWrapper(BaseModelWrapper):
         -------
         dict
             Dictionary containing:
-            - 'lines': Detected line segments
-            - 'scores': Confidence scores for each line
+            - 'lines': Detected line segments as an array of shape (N, 4)
+            - 'scores': Confidence scores for each line as an array of shape (N,)
             - 'processed_lines': Post-processed lines
             - 'processed_scores': Post-processed scores
         """
         if not self.is_loaded():
             self.load_model()
 
-        assert self.model is not None
-
-        # Preprocess image
+        # 1) Preprocess (reads file if `image` is a path)
         image_tensor = self.preprocess(image)
 
-        # Prepare input dictionary for L-CNN
+        # 2) Build the input dict for the L-CNN model
         device = torch.device(self.device)
         input_dict = {
             "image": image_tensor.to(device),
@@ -252,28 +250,32 @@ class LCNNWrapper(BaseModelWrapper):
             "mode": "testing",
         }
 
-        # Run inference
+        # 3) Inference
         with torch.no_grad():
             outputs = self.model(input_dict)["preds"]
 
-        # Extract and scale lines back to original image size
-        lines = outputs["lines"][0].cpu().numpy() / 128 * np.array(self._original_shape)
-        scores = outputs["score"][0].cpu().numpy()
+        # 4) Scale raw 128×128 coords back to original image size
+        h, w = self._original_shape
+        raw = outputs["lines"][0].cpu().numpy()        # shape (N, 4)
+        scales = np.array([h, w, h, w], dtype=float)  # [y_scale, x_scale, y_scale, x_scale]
+        raw_flat = raw / 128 * scales                 # still (N, 4)
 
-        # Remove duplicate lines
-        for i in range(1, len(lines)):
-            if (lines[i] == lines[0]).all():
-                lines = lines[:i]
-                scores = scores[:i]
-                break
+        # 5) Reshape only for postprocess: (N, 4) → (N, 2, 2)
+        lines_for_post = raw_flat.reshape(-1, 2, 2)
 
-        # Postprocess
-        processed_lines, processed_scores = self.postprocess(
-            {"lines": lines, "scores": scores, "image_shape": self._original_shape}
-        )
+        # 6) Extract scores
+        scores = outputs["score"][0].cpu().numpy()    # shape (N,)
 
+        # 7) Post-process to remove duplicates/overlaps
+        processed_lines, processed_scores = self.postprocess({
+            "lines": lines_for_post,
+            "scores": scores,
+            "image_shape": self._original_shape,
+        })
+
+        # 8) Return the flat array for your callers/tests
         return {
-            "lines": lines,
+            "lines": raw_flat,
             "scores": scores,
             "processed_lines": processed_lines,
             "processed_scores": processed_scores,
