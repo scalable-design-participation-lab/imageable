@@ -11,6 +11,12 @@ requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.2.6",
     "pandas>=2.2.3",
+    "pillow>=11.2.1",
+    "torch>=2.7.1",
+    "transformers>=4.52.4",
+    "scikit-image>=0.19.0",
+    "matplotlib>=3.5.0",
+    "tensorboardx>=2.6.4",
 ]
 
 [project.scripts]
@@ -48,7 +54,7 @@ testpaths = ["tests", "src"]
 [tool.coverage.run]
 source = ["src/imageable"]
 branch = true
-omit = ["*/tests/*", "*/test_*"]
+omit = ["*/tests/*", "*/test_*", "src/imageable/models/lcnn_lib/*"]
 
 [tool.coverage.report]
 exclude_lines = [
