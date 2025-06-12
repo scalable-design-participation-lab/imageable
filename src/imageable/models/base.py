@@ -1,4 +1,3 @@
-# src/imageable/models/base.py
 from abc import ABC, abstractmethod
 from typing import Any
 
