@@ -7,12 +7,13 @@ import skimage.transform
 import torch
 import yaml
 
-from ..base import BaseModelWrapper
-from ..lcnn_lib import models as lcnn_models
-from ..lcnn_lib.config import C, M
-from ..lcnn_lib.models.line_vectorizer import LineVectorizer
-from ..lcnn_lib.models.multitask_learner import MultitaskHead, MultitaskLearner
-from ..lcnn_lib.postprocess import postprocess
+from imageable.models.base import BaseModelWrapper
+from imageable.models.lcnn import models as lcnn_models
+from imageable.models.lcnn.core.config import C, M
+from imageable.models.lcnn.models.line_vectorizer import LineVectorizer
+from imageable.models.lcnn.models.multitask_learner import MultitaskHead, MultitaskLearner
+from imageable.models.lcnn.core.postprocess import postprocess
+
 
 
 class LCNNWrapper(BaseModelWrapper):

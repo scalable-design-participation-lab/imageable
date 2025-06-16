@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from ..config import M
+from imageable.models.lcnn.core.config import M
 
 FEATURE_DIM = 8
 

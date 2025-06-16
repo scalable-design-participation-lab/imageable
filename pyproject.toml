@@ -54,7 +54,7 @@ testpaths = ["tests", "src"]
 [tool.coverage.run]
 source = ["src/imageable"]
 branch = true
-omit = ["*/tests/*", "*/test_*", "src/imageable/models/lcnn_lib/*"]
+omit = ["*/tests/*", "*/test_*", "src/imageable/models/lcnn/core/*", "src/imageable/models/lcnn/models/*"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -92,7 +92,8 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    "src/imageable/models/lcnn_lib",
+    "src/imageable/models/lcnn/core/",
+    "src/imageable/models/lcnn/models/",
     "src/imageable/models/lcnn/lcnn_wrapper.py",
     "tests/models/lcnn/test_lcnn_wrapper.py",
 ]
@@ -163,8 +164,10 @@ ignore = [
     "S101",  # Allow assert in tests
     "ANN",   # Don't require annotations in tests
     "PLR2004", # Magic value used in comparison
+    "SLF001", # Allow access to private in tests
 ]
-"src/imageable/models/lcnn_lib/**/*.py" = ["ALL"]
+"src/imageable/models/lcnn/core/**/*.py" = ["ALL"]
+"src/imageable/models/lcnn/models/**/*.py" = ["ALL"]
 "src/imageable/models/lcnn/lcnn_wrapper.py" = ["ALL"]
 "tests/models/lcnn/test_lcnn_wrapper.py" = ["ALL"]
 
@@ -204,7 +207,10 @@ module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 [[tool.mypy.overrides]]
-module = "imageable.models.lcnn_lib.*"
+module = "imageable.models.lcnn.core.*"
+ignore_errors = true
+[[tool.mypy.overrides]]
+module = "imageable.models.lcnn.models.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
@@ -217,5 +223,5 @@ ignore_errors = true
 
 # Bandit security linter configuration
 [tool.bandit]
-exclude_dirs = ["tests",  "src/imageable/models/lcnn_lib", "src/imageable/models/lcnn/lcnn_wrapper.py"]
+exclude_dirs = ["tests",  "src/imageable/models/lcnn/core","src/imageable/models/lcnn/models", "src/imageable/models/lcnn/lcnn_wrapper.py"]
 skips = ["B101"]  # Skip assert_used test

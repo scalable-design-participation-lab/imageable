@@ -1,7 +1,11 @@
+from typing import Any
+
 import numpy as np
-import torch
 import pytest
+import torch
+
 from imageable.models.lcnn.lcnn_wrapper import LCNNWrapper
+
 
 @pytest.fixture
 def sample_config():
@@ -18,20 +22,28 @@ def sample_config():
         }
     }
 
+
 @pytest.fixture
 def sample_image():
     # small dummy image, but with a known shape
     return np.zeros((100, 200, 3), dtype=np.uint8)
 
-def make_dummy_model(dummy_lines, dummy_scores):
+
+def make_dummy_model(dummy_lines, dummy_scores) -> Any:
     """
     Return an object that, when called with input_dict, returns
     {"preds": {"lines": dummy_lines, "score": dummy_scores}}
     """
-    class Dummy(torch.nn.Module):
-        def forward(self, input_dict):
+
+    class Dummy(torch.nn.Module):  # type: ignore[misc]
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, _input_dict: dict[str, Any]) -> dict[str, dict[str, Any]]:
             return {"preds": {"lines": dummy_lines, "score": dummy_scores}}
+
     return Dummy()
+
 
 def test_predict_scales_correctly(monkeypatch, sample_config, sample_image):
     wrapper = LCNNWrapper(config=sample_config)
@@ -40,7 +52,6 @@ def test_predict_scales_correctly(monkeypatch, sample_config, sample_image):
     dummy_lines = torch.tensor([[[0.0, 0.0, 128.0, 128.0]]])
     dummy_scores = torch.tensor([[0.42]])
 
-    # monkey‐patch load_model to inject our dummy
     def fake_load(self):
         self.model = make_dummy_model(dummy_lines, dummy_scores)
 
@@ -54,16 +65,15 @@ def test_predict_scales_correctly(monkeypatch, sample_config, sample_image):
 
     assert wrapper._original_shape == original_shape
 
-    expected = np.array([[0.0 * 0.78125,
-                          0.0 * 1.5625,
-                          128.0 * 0.78125,
-                          128.0 * 1.5625]])
+    expected = np.array([[0.0 * 0.78125, 0.0 * 1.5625, 128.0 * 0.78125, 128.0 * 1.5625]])
     np.testing.assert_allclose(out["lines"], expected, atol=1e-5)
 
     np.testing.assert_allclose(out["scores"], [0.42], atol=1e-6)
 
+
 def test_predict_with_image_path(tmp_path, monkeypatch, sample_config, sample_image):
     import skimage.io
+
     img_path = tmp_path / "img.png"
     skimage.io.imsave(str(img_path), sample_image)
 
