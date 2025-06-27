@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
 
-from .base import HuggingFaceModelWrapper
+from imageable.models.huggingface.base import HuggingFaceModelWrapper
 
 
 class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
@@ -70,13 +70,73 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         """
         return self.model is not None and self.processor is not None
 
-    def predict(self, image: Image.Image) -> np.ndarray[Any, np.dtype[np.int64]]:
+    def preprocess(self, image: Image.Image | np.ndarray[Any, np.dtype[np.float64]]) -> dict[str, torch.Tensor]:
+        """
+        Preprocess image for SegFormer model.
+
+        Parameters
+        ----------
+        image : PIL.Image.Image or np.ndarray
+            Input image to preprocess.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Preprocessed inputs ready for the model.
+        """
+        if not self.is_loaded():
+            self.load_model()
+        assert self.processor is not None
+
+        # Convert numpy array to PIL Image if needed
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+
+        # Store original size for later use
+        self._original_size = image.size
+
+        # Process with HuggingFace processor
+        inputs = self.processor(images=image, return_tensors="pt")
+
+        return {k: v.to(self.device) for k, v in inputs.items()}
+
+    def postprocess(self, outputs: Any) -> np.ndarray[Any, np.dtype[np.int64]]:
+        """
+        Postprocess model outputs to get segmentation map.
+
+        Parameters
+        ----------
+        outputs : Any
+            Raw model outputs.
+
+        Returns
+        -------
+        np.ndarray
+            Segmentation map with class indices.
+        """
+        logits = outputs.logits
+
+        # Resize logits to original image size
+        resized_logits = torch.nn.functional.interpolate(
+            logits,
+            size=self._original_size[::-1],  # PIL uses (width, height), torch uses (height, width)
+            mode="bicubic",
+            align_corners=False,
+        )
+
+        # Get predictions
+        prediction = torch.argmax(resized_logits, dim=1).squeeze().cpu().numpy()
+        return cast("np.ndarray[Any, np.dtype[np.int64]]", prediction)
+
+    def predict(
+        self, image: Image.Image | np.ndarray[Any, np.dtype[np.float64]]
+    ) -> np.ndarray[Any, np.dtype[np.int64]]:
         """
         Perform semantic segmentation on a single image.
 
         Parameters
         ----------
-        image : PIL.Image.Image
+        image : PIL.Image.Image or np.ndarray
             Input image in RGB format.
 
         Returns
@@ -87,21 +147,15 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         if not self.is_loaded():
             self.load_model()
         assert self.model is not None
-        assert self.processor is not None
 
-        inputs = self.processor(images=image, return_tensors="pt").to(self.device)
-        outputs = self.model(**inputs)
-        logits = outputs.logits
+        # Preprocess
+        inputs = self.preprocess(image)
 
-        resized_logits = torch.nn.functional.interpolate(
-            logits,
-            size=image.size[::-1],
-            mode="bicubic",
-            align_corners=False,
-        )
+        # Run inference
+        with torch.no_grad():
+            outputs = self.model(**inputs)
 
-        prediction = torch.argmax(resized_logits, dim=1).squeeze().cpu().numpy()
-        return cast("np.ndarray[Any, np.dtype[np.int64]]", prediction)
+        return self.postprocess(outputs)
 
     def remap_labels(
         self,

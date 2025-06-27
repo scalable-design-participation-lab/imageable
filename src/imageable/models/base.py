@@ -1,31 +1,23 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any
 
-from imageable.models.base import BaseModelWrapper
 
-
-class HuggingFaceModelWrapper(BaseModelWrapper):
+class BaseModelWrapper(ABC):
     """
-    Abstract base class for Hugging Face model wrappers.
+    Abstract base class for all model wrappers.
     Provides a consistent interface for loading and using models.
+
+    Note: preprocess and postprocess are optional methods that can be
+    overridden by subclasses if needed.
     """
 
     @abstractmethod
-    def __init__(self, model_name: str, device: str | None = None) -> None:
-        """
-        Initialize the model wrapper with the specified model name and device.
-
-        Parameters
-        ----------
-        model_name : str
-            The name or path of the Hugging Face model.
-        device : str, optional
-            The device to load the model onto (e.g., 'cpu' or 'cuda').
-        """
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the model wrapper."""
 
     @abstractmethod
     def load_model(self) -> None:
-        """Load the model from Hugging Face or local cache."""
+        """Load the model from checkpoint or initialize it."""
 
     @abstractmethod
     def predict(self, inputs: Any) -> Any:
@@ -35,7 +27,7 @@ class HuggingFaceModelWrapper(BaseModelWrapper):
         Parameters
         ----------
         inputs : Any
-            Input data suitable for the model type (e.g., string, dict, tensor).
+            Input data suitable for the model type.
 
         Returns
         -------
@@ -59,10 +51,12 @@ class HuggingFaceModelWrapper(BaseModelWrapper):
             True if the model is loaded and ready to predict; False otherwise.
         """
 
-    @abstractmethod
     def preprocess(self, inputs: Any) -> Any:
         """
         Preprocess inputs before passing to the model.
+
+        Default implementation returns inputs unchanged.
+        Override this method in subclasses if preprocessing is needed.
 
         Parameters
         ----------
@@ -74,11 +68,14 @@ class HuggingFaceModelWrapper(BaseModelWrapper):
         Any
             Preprocessed data ready for model inference.
         """
+        return inputs
 
-    @abstractmethod
     def postprocess(self, outputs: Any) -> Any:
         """
         Postprocess model outputs.
+
+        Default implementation returns outputs unchanged.
+        Override this method in subclasses if postprocessing is needed.
 
         Parameters
         ----------
@@ -90,3 +87,4 @@ class HuggingFaceModelWrapper(BaseModelWrapper):
         Any
             Processed outputs in a more usable format.
         """
+        return outputs
