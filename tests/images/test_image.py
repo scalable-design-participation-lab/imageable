@@ -1,4 +1,4 @@
-#Tests for image parameters
+# Tests for image parameters
 from imageable.images.camera import CameraParameters
 from imageable.images.image import ImageMetadata
 
@@ -6,22 +6,16 @@ from imageable.images.image import ImageMetadata
 # Test valid metadata
 def test_valid_metadata():
     metadata = ImageMetadata(
-        status = True,
-        latitude = 40.7128,
-        longitude = -74.0060,
-        pano_id = "hello_world",
-        date = "1918-01",
-        source = "Uriel simulations",
-        img_size = (640, 480),
-        camera_parameters = CameraParameters(
-            latitude=40.7128,
-            longitude=-74.0060,
-            heading=0.0,
-            pitch=0.0,
-            fov=90.0,
-            width=640,
-            height=480
-        )
+        status=True,
+        latitude=40.7128,
+        longitude=-74.0060,
+        pano_id="hello_world",
+        date="1918-01",
+        source="Uriel simulations",
+        img_size=(640, 480),
+        camera_parameters=CameraParameters(
+            latitude=40.7128, longitude=-74.0060, heading=0.0, pitch=0.0, fov=90.0, width=640, height=480
+        ),
     )
 
     assert metadata.status
@@ -36,22 +30,16 @@ def test_valid_metadata():
 
 def test_metadata_to_dict():
     metadata = ImageMetadata(
-        status = True,
-        latitude = 40.7128,
-        longitude = -74.0060,
-        pano_id = "hello_world",
-        date = "1918-01",
-        source = "Uriel simulations",
-        img_size = (640, 480),
-        camera_parameters = CameraParameters(
-            latitude=40.7128,
-            longitude=-74.0060,
-            heading=0.0,
-            pitch=0.0,
-            fov=90.0,
-            width=640,
-            height=480
-        )
+        status=True,
+        latitude=40.7128,
+        longitude=-74.0060,
+        pano_id="hello_world",
+        date="1918-01",
+        source="Uriel simulations",
+        img_size=(640, 480),
+        camera_parameters=CameraParameters(
+            latitude=40.7128, longitude=-74.0060, heading=0.0, pitch=0.0, fov=90.0, width=640, height=480
+        ),
     )
 
     # Validate the conversion to dictionary
@@ -73,6 +61,3 @@ def test_metadata_to_dict():
     assert metadata_dictionary["camera_parameters"]["fov"] == 90.0
     assert metadata_dictionary["camera_parameters"]["width"] == 640
     assert metadata_dictionary["camera_parameters"]["height"] == 480
-
-
-

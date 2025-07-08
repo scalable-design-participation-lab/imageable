@@ -35,7 +35,7 @@ class ImageMetadata:
     # Date when the image was updated/uploaded
     date: str
     # size of the image
-    img_size: tuple[int]
+    img_size: tuple[int | None, int | None]
     # source/copyright
     source: str
     # Latitude
@@ -45,11 +45,11 @@ class ImageMetadata:
     # panorama id
     pano_id: str
     # camera parameters
-    camera_parameters: CameraParameters | dict
+    camera_parameters: CameraParameters | dict[str, Any]
 
     def __post_init__(self) -> None:
         """Convert camera parameters to a dictionary if necessary."""
-        #The default behavior is to convert the camera parameters to a dictionary
+        # The default behavior is to convert the camera parameters to a dictionary
         if isinstance(self.camera_parameters, CameraParameters):
             self.camera_parameters = self.camera_parameters.to_dict()
 
