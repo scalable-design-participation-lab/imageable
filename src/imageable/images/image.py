@@ -35,7 +35,7 @@ class ImageMetadata:
     # Date when the image was updated/uploaded
     date: str
     # size of the image
-    img_size: tuple[int]
+    img_size: tuple[int, int]
     # source/copyright
     source: str
     # Latitude

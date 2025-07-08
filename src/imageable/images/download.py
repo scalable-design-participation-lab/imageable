@@ -3,7 +3,7 @@ import json
 import logging
 from http import HTTPStatus
 from pathlib import Path
-
+from typing import Any
 import numpy as np
 import numpy.typing as npt
 import requests
@@ -16,7 +16,7 @@ NA_FIELD = "N/A"
 RESPONSE_TIMEOUT = 10
 
 
-def _save_metadata(save_path: str, metadata_dictionary: dict) -> None:
+def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
     """Save metadata to a JSON file."""
     try:
         parent_path = Path(save_path).parent
@@ -34,7 +34,7 @@ def fetch_image(
     camera_parameters: CameraParameters,
     save_path: str | None,
     overwrite_image: bool =True
-) -> tuple[npt.NDArray, ImageMetadata]:
+) -> tuple[npt.NDArray[np.uint8]|None, ImageMetadata|None]:
     """
     Interface applied to fetch the Street View image based on CameraParameters.
 
@@ -66,9 +66,9 @@ def fetch_image(
     # Construct the parameters for the API request
     params = {
         "location": f"{camera_parameters.latitude}, {camera_parameters.longitude}",
-        "heading": camera_parameters.heading,
-        "pitch": camera_parameters.pitch,
-        "fov": camera_parameters.fov,
+        "heading": str(camera_parameters.heading),
+        "pitch": str(camera_parameters.pitch),
+        "fov": str(camera_parameters.fov),
         "size": f"{camera_parameters.width}x{camera_parameters.height}",
         "key": api_key,
     }
@@ -111,7 +111,7 @@ def fetch_image(
             if save_path is not None:
                 img_save_path = Path(save_path)
                 img_save_path.parent.mkdir(parents = True, exist_ok = True)
-                with img_save_path.open("w") as f:
+                with img_save_path.open("wb") as f:
                     f.write(response.content)
         else:
             img_metadata.status = False
