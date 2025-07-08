@@ -55,6 +55,7 @@ def test_fetch_image_success(mock_requests_get):
     )
 
     #Verify the image and metadata
+    assert image is not None
     assert isinstance(metadata, ImageMetadata)
     assert metadata.status
     assert metadata.latitude == 40.7128

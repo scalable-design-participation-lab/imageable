@@ -1,6 +1,5 @@
 from dataclasses import asdict, dataclass
 from typing import Any
-
 from imageable.images.camera import CameraParameters
 
 
@@ -35,7 +34,7 @@ class ImageMetadata:
     # Date when the image was updated/uploaded
     date: str
     # size of the image
-    img_size: tuple[int, int]
+    img_size: tuple[int | None, int | None]
     # source/copyright
     source: str
     # Latitude
@@ -45,7 +44,7 @@ class ImageMetadata:
     # panorama id
     pano_id: str
     # camera parameters
-    camera_parameters: CameraParameters | dict
+    camera_parameters: CameraParameters | dict[str,Any]
 
     def __post_init__(self) -> None:
         """Convert camera parameters to a dictionary if necessary."""
