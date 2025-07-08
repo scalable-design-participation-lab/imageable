@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from typing import Any
+
 from imageable.images.camera import CameraParameters
 
 
@@ -44,11 +45,11 @@ class ImageMetadata:
     # panorama id
     pano_id: str
     # camera parameters
-    camera_parameters: CameraParameters | dict[str,Any]
+    camera_parameters: CameraParameters | dict[str, Any]
 
     def __post_init__(self) -> None:
         """Convert camera parameters to a dictionary if necessary."""
-        #The default behavior is to convert the camera parameters to a dictionary
+        # The default behavior is to convert the camera parameters to a dictionary
         if isinstance(self.camera_parameters, CameraParameters):
             self.camera_parameters = self.camera_parameters.to_dict()
 

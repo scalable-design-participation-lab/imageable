@@ -4,6 +4,7 @@ import logging
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
+
 import numpy as np
 import numpy.typing as npt
 import requests
@@ -21,7 +22,7 @@ def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
     try:
         parent_path = Path(save_path).parent
         # Ensure the directory exists
-        parent_path.mkdir(parents = True, exist_ok = True)
+        parent_path.mkdir(parents=True, exist_ok=True)
         metadata_path = parent_path / "metadata.json"
         with metadata_path.open("w") as f:
             json.dump(metadata_dictionary, f, indent=4)
@@ -30,11 +31,8 @@ def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
 
 
 def fetch_image(
-    api_key: str,
-    camera_parameters: CameraParameters,
-    save_path: str | None,
-    overwrite_image: bool =True
-) -> tuple[npt.NDArray[np.uint8]|None, ImageMetadata|None]:
+    api_key: str, camera_parameters: CameraParameters, save_path: str | None, overwrite_image: bool = True
+) -> tuple[npt.NDArray[np.uint8] | None, ImageMetadata | None]:
     """
     Interface applied to fetch the Street View image based on CameraParameters.
 
@@ -75,7 +73,7 @@ def fetch_image(
 
     # First let's fetch the metadata
     metadata_url = "https://maps.googleapis.com/maps/api/streetview/metadata"
-    response_metadata = requests.get(metadata_url, params=params, timeout = RESPONSE_TIMEOUT)
+    response_metadata = requests.get(metadata_url, params=params, timeout=RESPONSE_TIMEOUT)
 
     # If the status code is 200, we can extract the metadata
     if response_metadata.status_code == HTTPStatus.OK:
@@ -110,7 +108,7 @@ def fetch_image(
             image_array = np.array(Image.open(image))
             if save_path is not None:
                 img_save_path = Path(save_path)
-                img_save_path.parent.mkdir(parents = True, exist_ok = True)
+                img_save_path.parent.mkdir(parents=True, exist_ok=True)
                 with img_save_path.open("wb") as f:
                     f.write(response.content)
         else:
