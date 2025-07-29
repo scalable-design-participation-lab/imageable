@@ -18,7 +18,17 @@ RESPONSE_TIMEOUT = 10
 
 
 def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
-    """Save metadata to a JSON file."""
+    """
+    Save metadata to a JSON file.
+    Parameters
+    .---------
+
+    save_path
+        The path where the metadata will be saved.
+    metadata_dictionary
+        The metadata dictionary to save. 
+    """
+    
     try:
         parent_path = Path(save_path).parent
         # Ensure the directory exists
@@ -95,7 +105,7 @@ def fetch_image(
             latitude=latitude,
             longitude=longitude,
             pano_id=pano_id,
-            camera_parameters=camera_parameters,
+            camera_parameters=camera_parameters
         )
 
         # Now let's get the image
