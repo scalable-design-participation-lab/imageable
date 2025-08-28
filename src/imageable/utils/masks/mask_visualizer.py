@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple
-import random
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.colors import to_rgb
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class TransparentMaskVisualizer:
@@ -14,7 +16,7 @@ class TransparentMaskVisualizer:
 
     @staticmethod
     def _transparent_mask(
-        mask: np.ndarray, color: Tuple[float, float, float], alpha: float
+        mask: np.ndarray, color: tuple[float, float, float], alpha: float
     ) -> np.ndarray:
         """Return an RGBA image where mask==1 pixels get `color` and alpha."""
         rgba = np.zeros((*mask.shape, 4), dtype=float)
@@ -23,26 +25,26 @@ class TransparentMaskVisualizer:
         return rgba
 
     @staticmethod
-    def _centroid(mask: np.ndarray) -> Tuple[float, float]:
+    def _centroid(mask: np.ndarray) -> tuple[float, float]:
         """Centroid (row, col) of a binary mask."""
         ys, xs = np.nonzero(mask)
         return float(ys.mean()), float(xs.mean())
 
     def visualize(
     self,
-    image: np.ndarray,                    
-    masks: Sequence[np.ndarray],         
-    labels: Sequence[str],               
+    image: np.ndarray,
+    masks: Sequence[np.ndarray],
+    labels: Sequence[str],
     *,
-    figsize: Tuple[int, int] = (7, 7),
+    figsize: tuple[int, int] = (7, 7),
     title: str = "",
-    colors: Sequence[str] | None = None, 
+    colors: Sequence[str] | None = None,
     alpha: float = 0.6,
     font_color: str | Sequence[str] = "#ffffff",
     font_size: int = 12,
     save_path: str | None = None,
     dpi: int = 600,
-    ax: Optional[Any] = None,
+    ax: Any | None = None,
     offset_x: int = 0,
     offset_y: int = 0
 ) -> None:
@@ -53,7 +55,8 @@ class TransparentMaskVisualizer:
         with one color per label.
         """
         if len(masks) != len(labels):
-            raise ValueError("`masks` and `labels` must have the same length.")
+            msg = "`masks` and `labels` must have the same length."
+            raise ValueError(msg)
 
         # ─── handle mask colors ────────────────────────────────────────────────
         if colors is None:
@@ -68,9 +71,10 @@ class TransparentMaskVisualizer:
             colors_rgb = [to_rgb(c) for c in colors]
 
         # ─── handle font colors ────────────────────────────────────────────────
-        if isinstance(font_color, (list, tuple, np.ndarray)):
+        if isinstance(font_color, list | tuple | np.ndarray):
             if len(font_color) != len(labels):
-                raise ValueError("Length of `font_color` list must match `labels`.")
+                msg = "Length of `font_color` list must match `labels`."
+                raise ValueError(msg)
             font_colors = font_color
         else:
             font_colors = [font_color] * len(labels)
@@ -81,7 +85,7 @@ class TransparentMaskVisualizer:
 
         ax.imshow(image / 255.0 if image.dtype != float or image.max() > 1 else image)
 
-        for mask, label, rgb, fcol in zip(masks, labels, colors_rgb, font_colors):
+        for mask, label, rgb, fcol in zip(masks, labels, colors_rgb, font_colors, strict=False):
             overlay = self._transparent_mask(mask.astype(bool), rgb, alpha)
             ax.imshow(overlay)
             cy, cx = self._centroid(mask)

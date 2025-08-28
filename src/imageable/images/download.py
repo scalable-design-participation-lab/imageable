@@ -10,7 +10,7 @@ import numpy.typing as npt
 import requests
 from PIL import Image
 
-from imageable.images.camera import CameraParameters
+from imageable.images.camera.camera_parameters import CameraParameters
 from imageable.images.image import ImageMetadata
 
 NA_FIELD = "N/A"
@@ -20,15 +20,14 @@ RESPONSE_TIMEOUT = 10
 def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
     """
     Save metadata to a JSON file.
-    Parameters
-    .---------
 
+    Parameters
+    ----------
     save_path
         The path where the metadata will be saved.
     metadata_dictionary
-        The metadata dictionary to save. 
+        The metadata dictionary to save.
     """
-    
     try:
         parent_path = Path(save_path).parent
         # Ensure the directory exists

@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from imageable.images.camera import CameraParameters
+from imageable.images.camera.camera_parameters import CameraParameters
 
 
 @dataclass
