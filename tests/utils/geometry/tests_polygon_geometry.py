@@ -69,6 +69,3 @@ def test_polygon_outward_vectors():
 
     assert len(equal_conditions) == len(expected_vectors)
     assert all(equal_conditions)
-
-
-

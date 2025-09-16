@@ -32,7 +32,10 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         The ADE20K RGB color palette used for segmentation visualization.
     """
 
-    def __init__(self, model_name: str, device: str | None = None) -> None:
+    def __init__(self, 
+                 model_name: str, 
+                 device: str | None = None,
+                 palette_path:str|None = None) -> None:
         """
         Initialize the SegformerSegmentationWrapper.
 
@@ -48,7 +51,10 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         self.device = device or self._resolve_device()
         self.model: SegformerForSemanticSegmentation | None = None
         self.processor: AutoImageProcessor | None = None
-        self._ade_palette: list[int] = self._load_palette_from_json("src/imageable/assets/ade20k_palette.json")
+        if(palette_path is None):
+            self._ade_palette: list[int] = self._load_palette_from_json("src/imageable/assets/ade20k_palette.json")
+        else:
+            self._ade_palette: list[int] = self._load_palette_from_json(palette_path)
 
     def load_model(self) -> None:
         """

@@ -1,3 +1,4 @@
+from curses import raw
 from pathlib import Path
 from typing import Any
 
@@ -6,6 +7,7 @@ import skimage.io
 import skimage.transform
 import torch
 import yaml
+from huggingface_hub import hf_hub_download
 
 from imageable.models.base import BaseModelWrapper
 from imageable.models.lcnn import models as lcnn_models
@@ -36,6 +38,8 @@ class LCNNWrapper(BaseModelWrapper):
     config : dict
         Model configuration loaded from YAML.
     """
+    MODEL_REPO = "urilp4669/LCNN_Weights"
+    DOWNLOAD_FILENAME = "190418-201834-f8934c6-lr4d10-312k.pth"
 
     def __init__(
         self,
@@ -127,14 +131,19 @@ class LCNNWrapper(BaseModelWrapper):
         Load the L-CNN model from checkpoint.
         """
         if not self.checkpoint_path:
-            raise ValueError("checkpoint_path must be provided to load the model")
-
+            model_path = hf_hub_download(repo_id=self.MODEL_REPO, filename=self.DOWNLOAD_FILENAME)
+            self.checkpoint_path = model_path
+            if not Path(model_path).exists():
+                raise FileNotFoundError(f"Checkpoint file not found at {model_path}")
+            else:
+                print("Checkpoint downloaded")
+        
         # Update global configuration
         model_config = self.config.get("model", {})
         M.update(model_config)
 
         # Initialize model architecture using local lcnn_models
-        model = lcnn_models.hg(
+        model = lcnn_models.hourglass_pose.hg(
             depth=model_config.get("depth", 4),
             head=lambda c_in, c_out: MultitaskHead(c_in, c_out),
             num_stacks=model_config.get("num_stacks", 2),
@@ -257,12 +266,20 @@ class LCNNWrapper(BaseModelWrapper):
 
         # 4) Scale raw 128×128 coords back to original image size
         h, w = self._original_shape
-        raw = outputs["lines"][0].cpu().numpy()        # shape (N, 4)
-        scales = np.array([h, w, h, w], dtype=float)  # [y_scale, x_scale, y_scale, x_scale]
-        raw_flat = raw / 128 * scales                 # still (N, 4)
-
-        # 5) Reshape only for postprocess: (N, 4) → (N, 2, 2)
-        lines_for_post = raw_flat.reshape(-1, 2, 2)
+        
+        raw = outputs["lines"][0].cpu().numpy()# shape (N, 4)
+        if raw.ndim == 2 and raw.shape[1] == 4:
+            # raw is (N,4): [y0, x0, y1, x1] or [x0, y0, x1, y1] depending on model
+            # If your model uses [y, x] ordering (common in LCNN), scales should be [h, w, h, w]
+            scales = np.array([h, w, h, w], dtype=float)
+            raw_flat = raw / 128.0 * scales           # (N,4)
+            lines_for_post = raw_flat.reshape(-1, 2, 2)
+        else:
+            # raw is (N,2,2): [[y,x],[y,x]] or [[x,y],[x,y]] depending on model
+            # If ordering is [y, x], scale with [h, w] along the last dim:
+            raw_scaled = (raw / 128.0) * np.array([h, w], dtype=float)  # (N,2,2)
+            lines_for_post = raw_scaled
+            raw_flat = lines_for_post.reshape(-1, 4)
 
         # 6) Extract scores
         scores = outputs["score"][0].cpu().numpy()    # shape (N,)
