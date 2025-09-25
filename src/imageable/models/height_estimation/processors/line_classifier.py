@@ -43,6 +43,8 @@ class LineClassifier:
         point_check_list = np.vstack([point_check_list, middle])
         point_check_list = np.vstack([point_check_list, middle - ppd_dir])
         point_check_list = np.vstack([point_check_list, middle + ppd_dir])
+        point_check_list = [v for v in point_check_list if not np.isnan(v).any()]
+        print(point_check_list)
         
         total_num = 0
         local_num = 0
@@ -51,7 +53,6 @@ class LineClassifier:
         
         for pcl in point_check_list:
             total_num = total_num + 1
-            # Fix np.cast syntax:
             y_int = int(pcl[0] + 0.5)
             x_int = int(pcl[1] + 0.5)
             
