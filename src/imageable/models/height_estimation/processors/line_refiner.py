@@ -5,7 +5,7 @@ class LineRefiner:
     
     def extend_lines(self, pt1, pt2, segmt, config):
         """From lineRefinement.py lines 9-92"""
-        sky_label = int(config["SEGMENTATION"]["SkyLabel"])
+        sky_label = config["SEGMENTATION"]["SkyLabel"].split(",")
         building_label = int(config["SEGMENTATION"]["BuildingLabel"])
         # Fix np.cast syntax:
         ground_label = np.array(config["SEGMENTATION"]["GroundLabel"].split(','), dtype=int)
@@ -56,7 +56,7 @@ class LineRefiner:
                 flag = 0
                 pt_up_end = pt_up_end + direction
                 continue
-            if segmt[int(pt_up_end[0] + 0.5)][int(pt_up_end[1] + 0.5)] == sky_label:
+            if segmt[int(pt_up_end[0] + 0.5)][int(pt_up_end[1] + 0.5)] == int(sky_label[0]) or segmt[int(pt_up_end[0] + 0.5)][int(pt_up_end[1] + 0.5)] == int(sky_label[1]):
                 flag = 0
                 pt_up_end = pt_up_end + direction
         
