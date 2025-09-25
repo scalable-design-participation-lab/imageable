@@ -32,4 +32,38 @@ class SingleViewMetrology:
     
     @staticmethod
     def calculate_with_cross_ratio(hori_v1, hori_v2, vert_v1, pt_top, pt_bottom, zc=2.5):
-        pass
+        """
+        Cross-ratio based height calculation from heightMeasurement.py lines 144-166
+        """
+        from .processors.line_classifier import LineClassifier  # Import for helper functions
+        
+        line_vl = LineClassifier.line_coeff(hori_v1, hori_v2)
+        line_building_vert = LineClassifier.line_coeff(pt_top, pt_bottom)
+        C = LineClassifier.intersection(line_vl, line_building_vert)
+        
+        dist_AC = np.linalg.norm(np.asarray([vert_v1 - C]))
+        dist_AB = np.linalg.norm(np.asarray([vert_v1 - pt_top]))
+        dist_BD = np.linalg.norm(np.asarray([pt_top - pt_bottom]))
+        dist_CD = np.linalg.norm(np.asarray([C - pt_bottom]))
+        
+        height = dist_BD * dist_AC / (dist_CD * dist_AB) * zc
+        return height
+
+    @staticmethod
+    def calculate_with_cross_ratio_vl(hori_vline, vert_v1, pt_top, pt_bottom, zc=2.5):
+        """
+        Cross-ratio with vanishing line from heightMeasurement.py lines 169-192
+        """
+        from .processors.line_classifier import LineClassifier
+        
+        line_vl = hori_vline
+        line_building_vert = LineClassifier.line_coeff(pt_top, pt_bottom)
+        C = LineClassifier.intersection(line_vl, line_building_vert)
+        
+        dist_AC = np.linalg.norm(np.asarray([vert_v1 - C]))
+        dist_AB = np.linalg.norm(np.asarray([vert_v1 - pt_top]))
+        dist_BD = np.linalg.norm(np.asarray([pt_top - pt_bottom]))
+        dist_CD = np.linalg.norm(np.asarray([C - pt_bottom]))
+        
+        height = dist_BD * dist_AC / (dist_CD * dist_AB) * zc
+        return height

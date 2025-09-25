@@ -1,11 +1,10 @@
-from .core import HeightEstimator
+from .height_calculator import HeightCalculator, ImageableHeightEstimator
 from .single_view_metrology import SingleViewMetrology
-from .height_calculator import HeightCalculator
+from ..vpts.vpts_wrapper import VPTSWrapper
 
 __all__ = [
-    'HeightEstimator',
+    'HeightCalculator',
+    'ImageableHeightEstimator', 
     'SingleViewMetrology',
-    'HeightCalculator'
+    'VPTSWrapper'
 ]
-
-
