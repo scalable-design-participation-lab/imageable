@@ -218,8 +218,10 @@ class CameraParametersRefiner:
                     view_obtained = True
                     if(pictures_directory is not None):
                         #We save the image and metadata
-                        path_to_image = Path(pictures_directory) / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)
-                        path_to_metadata = Path(pictures_directory) / "metadata.json"
+                        pictures_directory = Path(pictures_directory)
+                        pictures_directory.mkdir(parents=True, exist_ok=True)
+                        path_to_image = pictures_directory/ (self.DEFAULT_IMAGE_NAME + self.EXTENSION)
+                        path_to_metadata = pictures_directory / "metadata.json"
                         Image.fromarray(image).save(path_to_image)
                         _save_metadata(path_to_metadata, metadata.to_dict())
             else:

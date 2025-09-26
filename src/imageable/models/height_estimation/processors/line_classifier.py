@@ -44,7 +44,6 @@ class LineClassifier:
         point_check_list = np.vstack([point_check_list, middle - ppd_dir])
         point_check_list = np.vstack([point_check_list, middle + ppd_dir])
         point_check_list = [v for v in point_check_list if not np.isnan(v).any()]
-        print(point_check_list)
         
         total_num = 0
         local_num = 0

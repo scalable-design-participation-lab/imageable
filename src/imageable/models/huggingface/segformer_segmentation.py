@@ -236,7 +236,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         np.ndarray
             Remapped segmentation map.
         """
-        remapped = np.zeros_like(seg)
+        remapped = np.zeros_like(seg, dtype = np.uint8)
         for src, tgt in mapping.items():
             remapped[seg == src] = tgt
         return remapped
