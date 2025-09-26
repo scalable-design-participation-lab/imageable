@@ -47,7 +47,7 @@ class HeightEstimationParameters:
         length_threshold:int = 60,
         seed_vp_ransac:int = 42,
         #Height calculation parameters
-        sky_label:List[int] = [2], 
+        sky_label:List[int] = [2,2], 
         building_label:List[int] = [1],
         ground_label:List[int]  = [6,11],
         line_classification_angle_threshold:float = 5.0,
@@ -274,7 +274,6 @@ def building_height_from_single_view(
         use_pitch_only=height_estimation_params.use_pitch_only,
         use_detected_vpt_only=height_estimation_params.use_detected_vpt_only
     )
-    
     return mean_no_outliers(collect_heights(results))
 
 def collect_heights(results: Dict) -> List[float]:
