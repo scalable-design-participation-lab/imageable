@@ -136,7 +136,8 @@ class LCNNWrapper(BaseModelWrapper):
             if not Path(model_path).exists():
                 raise FileNotFoundError(f"Checkpoint file not found at {model_path}")
             else:
-                print("Checkpoint downloaded")
+                print(f"Checkpoint downloaded at {model_path}")
+                
         
         # Update global configuration
         model_config = self.config.get("model", {})

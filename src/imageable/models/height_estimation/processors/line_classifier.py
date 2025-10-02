@@ -8,23 +8,36 @@ class LineClassifier:
         """From lineClassification.py lines 15-51"""
         flag = False
         t_angle = float(config["LINE_CLASSIFY"]["AngleThres"])
-        
+
         p1 = np.array([n1[1], n1[0]])
         p2 = np.array([n2[1], n2[0]])
-        
-        mpt = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0]
+
+        mpt = np.array([(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0])
         d1 = p2 - p1
         d2 = vpt - mpt
-        angle = np.rad2deg(np.arccos(np.dot(d1, d2) / (np.linalg.norm(d1) * np.linalg.norm(d2))))
-        
+
+        norm_d1 = np.linalg.norm(d1)
+        norm_d2 = np.linalg.norm(d2)
+
+        if norm_d1 == 0 or norm_d2 == 0:
+            return False  # degenerate, can't classify
+
+        cos_theta = np.dot(d1, d2) / (norm_d1 * norm_d2)
+        # numerical safety: clip to [-1, 1]
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+
+        angle = np.rad2deg(np.arccos(cos_theta))
+
         if angle < t_angle or 180 - angle < t_angle:
             flag = True
-        
+
         return flag
     
     def check_if_line_lies_in_building_area(self, seg_img, a, b, config):
         """From lineClassification.py lines 54-104"""
         middle = (a + b)/2.0
+        if np.allclose(a, b):
+            return False
         norm_direction = (a - b) / np.linalg.norm(a - b)
         ppd_dir = np.asarray([norm_direction[1], -norm_direction[0]])
         

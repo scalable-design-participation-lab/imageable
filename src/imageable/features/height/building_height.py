@@ -34,10 +34,10 @@ class HeightEstimationParameters:
             26: 1,
             3: 2,
             12: 11,
-            18: 11,
             7: 11,
             4: 11,
-            0: 2
+            10:11,
+            14:11
         },
         #Line segmentation parameters
         lcnn_config_path:str = str(Path(__file__).resolve().parents[2] / "assets" / "wireframe.yaml"),
@@ -47,16 +47,16 @@ class HeightEstimationParameters:
         length_threshold:int = 60,
         seed_vp_ransac:int = 42,
         #Height calculation parameters
-        sky_label:List[int] = [2,2], 
+        sky_label:List[int] = [0,2], 
         building_label:List[int] = [1],
         ground_label:List[int]  = [6,11],
-        line_classification_angle_threshold:float = 5.0,
+        line_classification_angle_threshold:float = 10.0,
         line_score_threshold:float = 0.94,
         edge_thres: str = "5,5",
         max_dbscan_distance:float = 60.0,
         verbose:bool = False,
         use_pitch_only:bool = False,
-        use_detected_vpt_only:bool = True,
+        use_detected_vpt_only:bool = False,
         shift_segmentation_labels:bool = True
         
 ):
