@@ -25,6 +25,7 @@ dependencies = [
     "lu-vp-detect>=1.0.4",
     "cmcrameri>=1.9",
     "scikit-learn>=1.7.2",
+    "timm>=1.0.21",
 ]
 
 [project.scripts]
@@ -58,7 +59,7 @@ addopts = [
     "--strict-markers",
     "--doctest-modules",
 ]
-testpaths = ["tests", "src"]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["src/imageable"]

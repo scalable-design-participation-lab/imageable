@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 from PIL import Image
 
-from imageable.images.camera import CameraParameters
+from imageable.images.camera.camera_parameters import CameraParameters
 from imageable.images.download import fetch_image
 from imageable.images.image import ImageMetadata
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import torch
@@ -25,11 +25,11 @@ class MaterialsDetectionResult:
     """
 
     mask: np.ndarray
-    colored: Optional[np.ndarray] = None
-    logits: Optional[torch.Tensor] = None
-    meta: Optional[dict] = None
+    colored: np.ndarray | None = None
+    logits: torch.Tensor | None = None
+    meta: dict | None = None
 
-    def to_pil(self) -> Optional[Image.Image]:
+    def to_pil(self) -> Image.Image | None:
         """
         Convert the colored mask (if available) to a PIL Image.
 

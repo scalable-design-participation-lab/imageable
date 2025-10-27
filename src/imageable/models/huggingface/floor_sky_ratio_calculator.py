@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
 from ultralytics import YOLO
@@ -15,10 +16,9 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
     adjust the camera position, so that the complete building can be observed.
     """
 
-    def __init__(self,
-        model_repo: str = "urilp4669/Facade_Segmentator",
-        filename: str = "facades.pt",
-        device: str | None = None) -> None:
+    def __init__(
+        self, model_repo: str = "urilp4669/Facade_Segmentator", filename: str = "facades.pt", device: str | None = None
+    ) -> None:
         self.model_repo = model_repo
         self.filename = filename
         self.device = device or self._resolve_device()
@@ -41,11 +41,8 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
         return image
 
     def postprocess(
-        self,
-        outputs: Results,
-        sky_label: str ="sky",
-        floor_label: str ="sidewalk",
-        building_label:str = "facade") -> dict:
+        self, outputs: Results, sky_label: str = "sky", floor_label: str = "sidewalk", building_label: str = "facade"
+    ) -> dict:
         """
         Compute sky/floor pixel ratios and return their binary masks. In the case that
         a building facade is detected near the center of the image, the ratios will focus
@@ -70,7 +67,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
                 "floor_mask": np.ndarray[bool]
             }
         """
-        #Get the masks and names dictionary
+        # Get the masks and names dictionary
         masks = outputs.masks
         names = outputs.names
         if masks is None:
@@ -90,7 +87,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
         floor_mask = np.zeros((height, width), dtype=bool)
 
         facade_masks = []
-        #Get whole binary masks
+        # Get whole binary masks
         for mask, name in zip(mask_array, class_names, strict=False):
             binary = mask > 0.5
             if name == sky_label:
@@ -100,53 +97,44 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
             elif name == building_label:
                 facade_masks.append(binary)
 
-        #Before obtaining the ratios we are going to multiply
-        #if possible by a mask of the building closest to the
-        #center of the image.
+        # Before obtaining the ratios we are going to multiply
+        # if possible by a mask of the building closest to the
+        # center of the image.
         closest_facade = None
         distance_to_center = float("inf")
-        if(len(facade_masks) > 0):
+        if len(facade_masks) > 0:
             for i in range(len(facade_masks)):
                 centroid = get_mask_centroid(facade_masks[i])
                 centroid_x = centroid[0]
-                diff_x = np.abs(centroid_x - width/2)
-                if(diff_x < distance_to_center):
+                diff_x = np.abs(centroid_x - width / 2)
+                if diff_x < distance_to_center:
                     distance_to_center = diff_x
                     closest_facade = facade_masks[i]
 
-        #If closest_facade is None we simply return the sky_ratio and floor_ratios
-        #without multiplying
-        if(closest_facade is None):
-            total_pixels = height*width
-            sky_ratio = sky_mask.sum()/total_pixels
-            floor_ratio = floor_mask.sum()/total_pixels
+        # If closest_facade is None we simply return the sky_ratio and floor_ratios
+        # without multiplying
+        if closest_facade is None:
+            total_pixels = height * width
+            sky_ratio = sky_mask.sum() / total_pixels
+            floor_ratio = floor_mask.sum() / total_pixels
 
-            return {
-                "sky_ratio":sky_ratio,
-                "floor_ratio": floor_ratio,
-                "sky_mask":sky_mask,
-                "floor_mask":floor_mask
-            }
+            return {"sky_ratio": sky_ratio, "floor_ratio": floor_ratio, "sky_mask": sky_mask, "floor_mask": floor_mask}
 
-
-        #Get limits of the facade
+        # Get limits of the facade
         facade_bounds = get_mask_limits(closest_facade)
         x_min = facade_bounds[0]
         x_max = facade_bounds[2]
 
-        #Ok facade tunnel mask (i am going to call it that)
-        #should be easy to obtain.
-        tube_mask = np.array([
-            [1 if x_min <= i <= x_max else 0 for i in range(width)]
-            for j in range(height)
-            ])
+        # Ok facade tunnel mask (i am going to call it that)
+        # should be easy to obtain.
+        tube_mask = np.array([[1 if x_min <= i <= x_max else 0 for i in range(width)] for j in range(height)])
 
-        #limit the sky and floor to this tube
+        # limit the sky and floor to this tube
         limited_sky = sky_mask & tube_mask
         limited_floor = floor_mask & tube_mask
 
-        sky_ratio = limited_sky.sum()/tube_mask.sum()
-        floor_ratio = limited_floor.sum()/tube_mask.sum()
+        sky_ratio = limited_sky.sum() / tube_mask.sum()
+        floor_ratio = limited_floor.sum() / tube_mask.sum()
 
         return {
             "sky_ratio": sky_ratio,
@@ -155,11 +143,10 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
             "floor_mask": floor_mask,
             "limited_sky": limited_sky,
             "limited_floor": limited_floor,
-            "facade_mask": closest_facade
+            "facade_mask": closest_facade,
         }
 
-
-    def predict(self, image: Image.Image | np.ndarray, conf:float = 0.5)-> dict:
+    def predict(self, image: Image.Image | np.ndarray, conf: float = 0.5) -> dict:
         """
         Predict the sky and floor ratios for a given image.
 
@@ -180,15 +167,12 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
         if not self.is_loaded():
             self.load_model()
         input_tensor = self.preprocess(image)
-        results = self.model.predict(input_tensor, conf=conf, verbose = False)
+        results = self.model.predict(input_tensor, conf=conf, verbose=False)
         return self.postprocess(results[0])
 
     def _resolve_device(self) -> str:
-        import torch
         if torch.cuda.is_available():
             return "cuda"
         if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
             return "mps"
         return "cpu"
-
-

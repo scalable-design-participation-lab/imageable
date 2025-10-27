@@ -7,39 +7,38 @@ given its polygon and optional image/model data.
 
 import numpy as np
 from shapely.geometry import Polygon
-from typing import Optional, Dict, List
-from pathlib import Path
 
+from .building import BuildingProperties
 from .footprint import extract_footprint_properties
 from .image import ImageCalculator
-from .building import BuildingProperties
 
 
 def extract_building_properties(
     building_id: str,
     polygon: Polygon,
-    all_buildings: Optional[List[Polygon]] = None,
+    all_buildings: list[Polygon] | None = None,
     neighbor_radius: float = 600.0,
     crs: int = 4326,
     # Image-based properties (optional)
-    street_view_image: Optional[np.ndarray] = None,
-    building_mask: Optional[np.ndarray] = None,
-    window_mask: Optional[np.ndarray] = None,
-    door_mask: Optional[np.ndarray] = None,
+    street_view_image: np.ndarray | None = None,
+    building_mask: np.ndarray | None = None,
+    window_mask: np.ndarray | None = None,
+    door_mask: np.ndarray | None = None,
     # Height estimation (optional)
-    height_value: Optional[float] = None,
+    height_value: float | None = None,
     # Material segmentation (optional)
-    material_percentages: Optional[Dict[str, float]] = None,
+    material_percentages: dict[str, float] | None = None,
+    verbose: bool = False,
 ) -> BuildingProperties:
     """
     Extract all properties for a building from its polygon and optional data.
-    
+
     This is the main function you should use. It orchestrates extraction of:
     - Footprint properties (geometric, engineered, contextual)
     - Image properties (color, shape, façade) - if image provided
     - Height - if provided
     - Materials - if provided
-    
+
     Parameters
     ----------
     building_id
@@ -64,22 +63,22 @@ def extract_building_properties(
         Pre-calculated building height in meters. Optional.
     material_percentages
         Pre-calculated material percentages. Optional.
-    
+
     Returns
     -------
     BuildingProperties
         Complete property object with all extracted features.
-    
+
     Examples
     --------
     Minimal usage (just polygon):
     >>> props = extract_building_properties("b001", polygon)
     >>> print(props.projected_area)
-    
+
     With neighbors:
     >>> props = extract_building_properties("b001", polygon, all_buildings=all_polygons)
     >>> print(props.neighbor_count)
-    
+
     With everything:
     >>> props = extract_building_properties(
     ...     "b001", polygon,
@@ -90,80 +89,76 @@ def extract_building_properties(
     ...     material_percentages={'concrete': 45.2, 'glass': 30.1}
     ... )
     """
-    
     # Initialize properties container
     properties = BuildingProperties(building_id=building_id)
-    
+
     # ========== 1. Footprint Properties ==========
-    print(f"[1/4] Extracting footprint properties for {building_id}...")
-    
+    if verbose:
+        print(f"[1/4] Extracting footprint properties for {building_id}...")
+
     footprint_props = extract_footprint_properties(
-        polygon=polygon,
-        all_footprints=all_buildings,
-        crs=crs,
-        neighbor_radius=neighbor_radius
+        polygon=polygon, all_footprints=all_buildings, crs=crs, neighbor_radius=neighbor_radius
     )
     properties.update_footprint_features(footprint_props)
-    
-    print(f"  ✓ Area: {properties.projected_area:.2f} m²")
-    print(f"  ✓ Complexity: {properties.complexity:.4f}")
-    if all_buildings:
+    if verbose:
+        print(f"  ✓ Area: {properties.projected_area:.2f} m²")
+        print(f"  ✓ Complexity: {properties.complexity:.4f}")
+    if all_buildings and verbose:
         print(f"  ✓ Neighbors: {properties.neighbor_count}")
-    
+
     # ========== 2. Height ==========
-    print(f"[2/4] Processing height...")
-    
+    if verbose:
+        print("[2/4] Processing height...")
+
     if height_value is not None:
         properties.update_height(height_value)
-        print(f"  ✓ Height: {height_value:.2f} m")
-    else:
-        print(f"  ⊘ No height provided")
-    
+        if verbose:
+            print(f"  ✓ Height: {height_value:.2f} m")
+    elif verbose:
+        print("  ⊘ No height provided")
+
     # ========== 3. Material Percentages ==========
-    print(f"[3/4] Processing materials...")
-    
+    if verbose:
+        print("[3/4] Processing materials...")
+
     if material_percentages is not None:
         properties.update_material_percentages(material_percentages)
-        print(f"  ✓ Materials: {len(material_percentages)} types")
-    else:
-        print(f"  ⊘ No materials provided")
-    
+        if verbose:
+            print(f"  ✓ Materials: {len(material_percentages)} types")
+    elif verbose:
+        print("  ⊘ No materials provided")
+
     # ========== 4. Image Properties ==========
-    print(f"[4/4] Extracting image properties...")
-    
+    if verbose:
+        print("[4/4] Extracting image properties...")
+
     if street_view_image is not None and building_mask is not None:
-        image_calc = ImageCalculator(
-            img=street_view_image,
-            building_mask=building_mask
-        )
-        
-        image_features = image_calc.extract_all_features(
-            window_mask=window_mask,
-            door_mask=door_mask
-        )
+        image_calc = ImageCalculator(img=street_view_image, building_mask=building_mask)
+
+        image_features = image_calc.extract_all_features(window_mask=window_mask, door_mask=door_mask)
         properties.update_image_features(image_features)
-        
-        print(f"  ✓ Color features extracted")
-        print(f"  ✓ Shape features extracted")
+
+        if verbose:
+            print("  ✓ Color features extracted")
+        if verbose:
+            print("  ✓ Shape features extracted")
         if window_mask is not None or door_mask is not None:
-            print(f"  ✓ Façade features extracted")
-    else:
-        print(f"  ⊘ No image/mask provided")
-    
-    print(f"\n✓ Complete! Total features: {len(properties.get_feature_vector())}")
-    
+            if verbose:
+                print("  ✓ Façade features extracted")
+    elif verbose:
+        print("  ⊘ No image/mask provided")
+    if verbose:
+        print(f"\n✓ Complete! Total features: {len(properties.get_feature_vector())}")
+
     return properties
 
 
 def batch_extract_properties(
-    buildings: List[Dict],
-    neighbor_radius: float = 600.0,
-    crs: int = 4326,
-    verbose: bool = True
-) -> List[BuildingProperties]:
+    buildings: list[dict], neighbor_radius: float = 600.0, crs: int = 4326, verbose: bool = True
+) -> list[BuildingProperties]:
     """
     Extract properties for multiple buildings in batch.
-    
+
     Parameters
     ----------
     buildings
@@ -182,12 +177,12 @@ def batch_extract_properties(
         Coordinate reference system.
     verbose
         Print progress.
-    
+
     Returns
     -------
     List[BuildingProperties]
         List of property objects for all buildings.
-    
+
     Example
     -------
     >>> buildings = [
@@ -197,46 +192,44 @@ def batch_extract_properties(
     >>> all_props = batch_extract_properties(buildings)
     """
     all_properties = []
-    all_polygons = [b['polygon'] for b in buildings]
-    
+    all_polygons = [b["polygon"] for b in buildings]
+
     for i, building in enumerate(buildings):
         if verbose:
-            print(f"\n{'='*60}")
-            print(f"Building {i+1}/{len(buildings)}: {building['id']}")
-            print(f"{'='*60}")
-        
+            print(f"\n{'=' * 60}")
+            print(f"Building {i + 1}/{len(buildings)}: {building['id']}")
+            print(f"{'=' * 60}")
+
         props = extract_building_properties(
-            building_id=building['id'],
-            polygon=building['polygon'],
+            building_id=building["id"],
+            polygon=building["polygon"],
             all_buildings=all_polygons,
             neighbor_radius=neighbor_radius,
             crs=crs,
-            street_view_image=building.get('image'),
-            building_mask=building.get('mask'),
-            window_mask=building.get('window_mask'),
-            door_mask=building.get('door_mask'),
-            height_value=building.get('height'),
-            material_percentages=building.get('materials'),
+            street_view_image=building.get("image"),
+            building_mask=building.get("mask"),
+            window_mask=building.get("window_mask"),
+            door_mask=building.get("door_mask"),
+            height_value=building.get("height"),
+            material_percentages=building.get("materials"),
         )
-        
+
         all_properties.append(props)
-    
+
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"✓ Batch complete! Processed {len(buildings)} buildings")
-        print(f"{'='*60}\n")
-    
+        print(f"{'=' * 60}\n")
+
     return all_properties
 
 
 def save_properties_batch(
-    properties_list: List[BuildingProperties],
-    output_dir: str = "properties",
-    format: str = "json"
+    properties_list: list[BuildingProperties], output_dir: str = "properties", format: str = "json"
 ):
     """
     Save a batch of properties to files.
-    
+
     Parameters
     ----------
     properties_list
@@ -245,47 +238,44 @@ def save_properties_batch(
         Directory to save files.
     format
         'json' or 'csv'.
-    
+
     Examples
     --------
     >>> save_properties_batch(all_props, "output/", format="json")
     >>> save_properties_batch(all_props, "output/", format="csv")
     """
     import os
+
     import pandas as pd
-    
+
     os.makedirs(output_dir, exist_ok=True)
-    
+
     if format == "json":
         for props in properties_list:
             filepath = os.path.join(output_dir, f"{props.building_id}.json")
             props.to_json(filepath)
         print(f"✓ Saved {len(properties_list)} JSON files to {output_dir}/")
-    
+
     elif format == "csv":
         # Create DataFrame
         property_dicts = [p.to_dict() for p in properties_list]
         df = pd.DataFrame(property_dicts)
-        
+
         # Save
         filepath = os.path.join(output_dir, "all_properties.csv")
         df.to_csv(filepath, index=False)
         print(f"✓ Saved properties to {filepath}")
-    
+
     else:
         raise ValueError(f"Unknown format: {format}. Use 'json' or 'csv'")
 
 
 def extract_from_image_path(
-    building_id: str,
-    polygon: Polygon,
-    image_path: str,
-    mask_path: Optional[str] = None,
-    **kwargs
+    building_id: str, polygon: Polygon, image_path: str, mask_path: str | None = None, **kwargs
 ) -> BuildingProperties:
     """
     Convenience function when image is a file path instead of array.
-    
+
     Parameters
     ----------
     building_id
@@ -298,17 +288,17 @@ def extract_from_image_path(
         Path to building mask image. Optional.
     **kwargs
         Additional arguments for extract_building_properties.
-    
+
     Returns
     -------
     BuildingProperties
         Extracted properties.
     """
     from PIL import Image
-    
+
     # Load image
     image = np.array(Image.open(image_path))
-    
+
     # Load mask if provided
     mask = None
     if mask_path:
@@ -316,11 +306,7 @@ def extract_from_image_path(
         if len(mask.shape) == 3:
             mask = mask[:, :, 0]  # Take first channel if RGB
         mask = mask > 0  # Ensure binary
-    
+
     return extract_building_properties(
-        building_id=building_id,
-        polygon=polygon,
-        street_view_image=image,
-        building_mask=mask,
-        **kwargs
+        building_id=building_id, polygon=polygon, street_view_image=image, building_mask=mask, **kwargs
     )

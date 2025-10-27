@@ -137,8 +137,8 @@ class LCNNWrapper(BaseModelWrapper):
                 raise FileNotFoundError(f"Checkpoint file not found at {model_path}")
             else:
                 print(f"Checkpoint downloaded at {model_path}")
-                
-        
+
+
         # Update global configuration
         model_config = self.config.get("model", {})
         M.update(model_config)
@@ -267,7 +267,7 @@ class LCNNWrapper(BaseModelWrapper):
 
         # 4) Scale raw 128×128 coords back to original image size
         h, w = self._original_shape
-        
+
         raw = outputs["lines"][0].cpu().numpy()# shape (N, 4)
         if raw.ndim == 2 and raw.shape[1] == 4:
             # raw is (N,4): [y0, x0, y1, x1] or [x0, y0, x1, y1] depending on model

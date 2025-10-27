@@ -15,13 +15,11 @@ class TransparentMaskVisualizer:
     """Overlay segmentation masks on an image with adjustable transparency."""
 
     @staticmethod
-    def _transparent_mask(
-        mask: np.ndarray, color: tuple[float, float, float], alpha: float
-    ) -> np.ndarray:
+    def _transparent_mask(mask: np.ndarray, color: tuple[float, float, float], alpha: float) -> np.ndarray:
         """Return an RGBA image where mask==1 pixels get `color` and alpha."""
         rgba = np.zeros((*mask.shape, 4), dtype=float)
         rgba[mask == 1, :3] = color  # RGB (already 0-1 range)
-        rgba[mask == 1, 3] = alpha   # A
+        rgba[mask == 1, 3] = alpha  # A
         return rgba
 
     @staticmethod
@@ -31,23 +29,23 @@ class TransparentMaskVisualizer:
         return float(ys.mean()), float(xs.mean())
 
     def visualize(
-    self,
-    image: np.ndarray,
-    masks: Sequence[np.ndarray],
-    labels: Sequence[str],
-    *,
-    figsize: tuple[int, int] = (7, 7),
-    title: str = "",
-    colors: Sequence[str] | None = None,
-    alpha: float = 0.6,
-    font_color: str | Sequence[str] = "#ffffff",
-    font_size: int = 12,
-    save_path: str | None = None,
-    dpi: int = 600,
-    ax: Any | None = None,
-    offset_x: int = 0,
-    offset_y: int = 0
-) -> None:
+        self,
+        image: np.ndarray,
+        masks: Sequence[np.ndarray],
+        labels: Sequence[str],
+        *,
+        figsize: tuple[int, int] = (7, 7),
+        title: str = "",
+        colors: Sequence[str] | None = None,
+        alpha: float = 0.6,
+        font_color: str | Sequence[str] = "#ffffff",
+        font_size: int = 12,
+        save_path: str | None = None,
+        dpi: int = 600,
+        ax: Any | None = None,
+        offset_x: int = 0,
+        offset_y: int = 0,
+    ) -> None:
         """
         Plot `image` with semi-transparent `masks` and their `labels`.
 
@@ -60,11 +58,7 @@ class TransparentMaskVisualizer:
 
         # ─── handle mask colors ────────────────────────────────────────────────
         if colors is None:
-            palette = (
-                sns.color_palette("tab20b", 20)
-                + sns.color_palette("tab20c", 20)
-                + sns.color_palette("tab20", 20)
-            )
+            palette = sns.color_palette("tab20b", 20) + sns.color_palette("tab20c", 20) + sns.color_palette("tab20", 20)
             idx = np.linspace(0, len(palette) - 1, len(masks)).astype(int)
             colors_rgb = [palette[i] for i in idx]
         else:

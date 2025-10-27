@@ -1,43 +1,174 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
-from PIL import Image
 import torch
 import torch.nn.functional as F
+from PIL import Image
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
 
 # -----------------------------
 # ADE20K label list (indexable)
 # -----------------------------
 # Matches the label order used in common DPT ADE20K checkpoints (150 classes).
-ADE20K_LABELS: Tuple[str, ...] = (
-    'wall', 'building', 'sky', 'floor', 'tree', 'ceiling', 'road', 'bed', 'window',
-    'grass', 'cabinet', 'sidewalk', 'person', 'earth', 'door', 'table', 'mountain',
-    'plant', 'curtain', 'chair', 'car', 'water', 'painting', 'sofa', 'shelf', 'house',
-    'sea', 'mirror', 'rug', 'field', 'armchair', 'seat', 'fence', 'desk', 'rock', 'wardrobe',
-    'lamp', 'bathtub', 'railing', 'cushion', 'base', 'box', 'column', 'signboard', 'dresser',
-    'counter', 'sand', 'sink', 'skyscraper', 'fireplace', 'refrigerator', 'grandstand', 'path',
-    'stairs', 'runway', 'case', 'pooltable', 'pillow', 'screen', 'stairway', 'river', 'bridge',
-    'bookcase', 'blind', 'coffeetable', 'toilet', 'flower', 'book', 'hill', 'bench',
-    'countertop', 'stove', 'palmtree', 'kitchen', 'computer', 'swivelchair', 'boat', 'bar',
-    'arcade', 'hut', 'bus', 'towel', 'light', 'truck', 'tower', 'chandelier', 'awning',
-    'streetlight', 'booth', 'television', 'airplane', 'dirttrack', 'apparel', 'pole', 'land',
-    'balustrade', 'escalator', 'ottoman', 'bottle', 'sideboard', 'poster', 'stage', 'van', 'ship',
-    'fountain', 'conveyerbelt', 'canopy', 'washer', 'toy', 'pool', 'stool', 'barrel', 'basket',
-    'waterfall', 'tent', 'bag', 'motorbike', 'cradle', 'oven', 'ball', 'food', 'step', 'tank',
-    'brandname', 'microwave', 'pot', 'animal', 'bicycle', 'lake', 'dishwasher', 'screen', 'blanket',
-    'sculpture', 'hood', 'sconce', 'vase', 'trafficlight', 'tray', 'trashcan', 'fan', 'pier',
-    'crtscreen', 'plate', 'monitor', 'bulletinboard', 'shower', 'radiator', 'glass', 'clock', 'flag'
+ADE20K_LABELS: tuple[str, ...] = (
+    "wall",
+    "building",
+    "sky",
+    "floor",
+    "tree",
+    "ceiling",
+    "road",
+    "bed",
+    "window",
+    "grass",
+    "cabinet",
+    "sidewalk",
+    "person",
+    "earth",
+    "door",
+    "table",
+    "mountain",
+    "plant",
+    "curtain",
+    "chair",
+    "car",
+    "water",
+    "painting",
+    "sofa",
+    "shelf",
+    "house",
+    "sea",
+    "mirror",
+    "rug",
+    "field",
+    "armchair",
+    "seat",
+    "fence",
+    "desk",
+    "rock",
+    "wardrobe",
+    "lamp",
+    "bathtub",
+    "railing",
+    "cushion",
+    "base",
+    "box",
+    "column",
+    "signboard",
+    "dresser",
+    "counter",
+    "sand",
+    "sink",
+    "skyscraper",
+    "fireplace",
+    "refrigerator",
+    "grandstand",
+    "path",
+    "stairs",
+    "runway",
+    "case",
+    "pooltable",
+    "pillow",
+    "screen",
+    "stairway",
+    "river",
+    "bridge",
+    "bookcase",
+    "blind",
+    "coffeetable",
+    "toilet",
+    "flower",
+    "book",
+    "hill",
+    "bench",
+    "countertop",
+    "stove",
+    "palmtree",
+    "kitchen",
+    "computer",
+    "swivelchair",
+    "boat",
+    "bar",
+    "arcade",
+    "hut",
+    "bus",
+    "towel",
+    "light",
+    "truck",
+    "tower",
+    "chandelier",
+    "awning",
+    "streetlight",
+    "booth",
+    "television",
+    "airplane",
+    "dirttrack",
+    "apparel",
+    "pole",
+    "land",
+    "balustrade",
+    "escalator",
+    "ottoman",
+    "bottle",
+    "sideboard",
+    "poster",
+    "stage",
+    "van",
+    "ship",
+    "fountain",
+    "conveyerbelt",
+    "canopy",
+    "washer",
+    "toy",
+    "pool",
+    "stool",
+    "barrel",
+    "basket",
+    "waterfall",
+    "tent",
+    "bag",
+    "motorbike",
+    "cradle",
+    "oven",
+    "ball",
+    "food",
+    "step",
+    "tank",
+    "brandname",
+    "microwave",
+    "pot",
+    "animal",
+    "bicycle",
+    "lake",
+    "dishwasher",
+    "screen",
+    "blanket",
+    "sculpture",
+    "hood",
+    "sconce",
+    "vase",
+    "trafficlight",
+    "tray",
+    "trashcan",
+    "fan",
+    "pier",
+    "crtscreen",
+    "plate",
+    "monitor",
+    "bulletinboard",
+    "shower",
+    "radiator",
+    "glass",
+    "clock",
+    "flag",
 )
 
-
-# -----------------------------
-# Config / thresholds
-# -----------------------------
 
 @dataclass
 class DPTGateConfig:
@@ -61,11 +192,12 @@ class DPTGateConfig:
         Keys used here: "building", "road", "sidewalk". The "building" mask is formed by OR-ing
         multiple ADE20K classes: {"house", "skyscraper", "building"} using this same threshold.
     """
+
     model_type: str = "dpt_hybrid"
-    checkpoint_path: Optional[Path] = None
+    checkpoint_path: Path | None = None
     device: str = "cpu"
     net_size: int = 480
-    thresholds: Dict[str, float] = None  # set in __post_init__
+    thresholds: dict[str, float] = None  # set in __post_init__
 
     def __post_init__(self) -> None:
         if self.thresholds is None:
@@ -81,7 +213,8 @@ class DPTGateConfig:
 # Helper utilities
 # -----------------------------
 
-def _to_pil_rgb(img: Union[Image.Image, np.ndarray]) -> Image.Image:
+
+def _to_pil_rgb(img: Image.Image | np.ndarray) -> Image.Image:
     if isinstance(img, Image.Image):
         return img.convert("RGB")
     if isinstance(img, np.ndarray):
@@ -107,7 +240,7 @@ def _find_label_idx(name: str) -> int:
 
 def _resize_logits_to(
     logits: np.ndarray,  # (C,h,w) float32
-    size_hw: Tuple[int, int]
+    size_hw: tuple[int, int],
 ) -> np.ndarray:
     """
     Resize per-class logits from (C,h,w) to (C,H,W) using bilinear interpolation via torch.
@@ -124,6 +257,7 @@ def _resize_logits_to(
 # -----------------------------
 # DPTGate main class
 # -----------------------------
+
 
 class DPTGate:
     """
@@ -142,7 +276,7 @@ class DPTGate:
     def __init__(
         self,
         config: DPTGateConfig,
-        predictor: Optional[Callable[[Image.Image], np.ndarray]] = None,
+        predictor: Callable[[Image.Image], np.ndarray] | None = None,
     ) -> None:
         """
         Parameters
@@ -187,8 +321,8 @@ class DPTGate:
     # --------------- Public API --------------- #
     def predict(
         self,
-        image: Union[Image.Image, np.ndarray],
-    ) -> Dict[str, np.ndarray]:
+        image: Image.Image | np.ndarray,
+    ) -> dict[str, np.ndarray]:
         """
         Produce boolean gating masks for keys: {'building','road','sidewalk'}.
 
@@ -222,7 +356,7 @@ class DPTGate:
             raise RuntimeError("predictor must return a numpy array of shape (C,h,w)")
 
         C, h, w = logits.shape
-        if C < max(self.idx_building, self.idx_house, self.idx_skyscraper, self.idx_road, self.idx_sidewalk) + 1:
+        if max(self.idx_building, self.idx_house, self.idx_skyscraper, self.idx_road, self.idx_sidewalk) + 1 > C:
             raise RuntimeError(
                 f"predictor returned {C} channels, but ADE20K indices up to {self.idx_skyscraper} are required"
             )
@@ -237,9 +371,11 @@ class DPTGate:
         th_sidewalk = float(self.cfg.thresholds.get("sidewalk", 12.0))
 
         # Building mask is an OR of several relevant ADE20K classes
-        m_building = (logits[self.idx_building] > th_building) | \
-                     (logits[self.idx_house] > th_building) | \
-                     (logits[self.idx_skyscraper] > th_building)
+        m_building = (
+            (logits[self.idx_building] > th_building)
+            | (logits[self.idx_house] > th_building)
+            | (logits[self.idx_skyscraper] > th_building)
+        )
 
         # Road
         m_road = logits[self.idx_road] > th_road

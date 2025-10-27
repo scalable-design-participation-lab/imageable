@@ -395,6 +395,7 @@ dependencies = [
     { name = "seaborn" },
     { name = "shapely" },
     { name = "tensorboardx" },
+    { name = "timm" },
     { name = "torch" },
     { name = "transformers" },
     { name = "ultralytics" },
@@ -427,6 +428,7 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "shapely", specifier = ">=2.1.1" },
     { name = "tensorboardx", specifier = ">=2.6.4" },
+    { name = "timm", specifier = ">=1.0.21" },
     { name = "torch", specifier = ">=2.7.1" },
     { name = "transformers", specifier = ">=4.52.4" },
     { name = "ultralytics", specifier = ">=8.3.186" },
@@ -1886,6 +1888,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/11/9e/636e3e433c24da41dd639e0520db60750dbf5e938d023b83af8097382ea3/tifffile-2025.6.11.tar.gz", hash = "sha256:0ece4c2e7a10656957d568a093b07513c0728d30c1bd8cc12725901fffdb7143", size = 370125, upload-time = "2025-06-12T04:49:38.839Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/d8/1ba8f32bfc9cb69e37edeca93738e883f478fbe84ae401f72c0d8d507841/tifffile-2025.6.11-py3-none-any.whl", hash = "sha256:32effb78b10b3a283eb92d4ebf844ae7e93e151458b0412f38518b4e6d2d7542", size = 230800, upload-time = "2025-06-12T04:49:37.458Z" },
+]
+
+[[package]]
+name = "timm"
+version = "1.0.21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "torchvision" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/63/ab9bc9441f173fab436d15070dbc90341ff1e439f3b76c6871bc37176580/timm-1.0.21.tar.gz", hash = "sha256:aa372fe43a85ed6ea0dd14945dac724c842e6e373779e2a2afd67d7dc1b82c4c", size = 2382582, upload-time = "2025-10-24T22:37:57.756Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/8c/a668e732032f6de4ecc6b33f7ed27eab1c238dce35f6fe39986ad61aed9e/timm-1.0.21-py3-none-any.whl", hash = "sha256:e7428083af9f68af5ef1d50724946d9b6a2ccba8688c3e5fc9370f59f76e50cf", size = 2529988, upload-time = "2025-10-24T22:37:55.539Z" },
 ]
 
 [[package]]
