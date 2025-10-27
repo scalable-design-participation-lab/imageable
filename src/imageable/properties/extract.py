@@ -5,6 +5,9 @@ This module provides the main function to extract all properties from a building
 given its polygon and optional image/model data.
 """
 
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import numpy as np
 from shapely.geometry import Polygon
 
