@@ -1,19 +1,15 @@
 import collections
-
-import torch
-import torch.nn.functional as F
-
-from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
-
 import queue
-import collections
 import threading
+
+import torch.nn.functional as F
+from torch.nn.modules.batchnorm import _BatchNorm
+from torch.nn.parallel._functions import Broadcast, ReduceAddCoalesced
 
 # from .comm import SyncMaster
 
 
-class FutureResult(object):
+class FutureResult:
     """A thread-safe future implementation. Used only as one-to-one pipe."""
 
     def __init__(self):
@@ -23,7 +19,7 @@ class FutureResult(object):
 
     def put(self, result):
         with self._lock:
-            assert self._result is None, 'Previous result has\'t been fetched.'
+            assert self._result is None, "Previous result has't been fetched."
             self._result = result
             self._cond.notify()
 
@@ -37,8 +33,8 @@ class FutureResult(object):
             return res
 
 
-_MasterRegistry = collections.namedtuple('MasterRegistry', ['result'])
-_SlavePipeBase = collections.namedtuple('_SlavePipeBase', ['identifier', 'queue', 'result'])
+_MasterRegistry = collections.namedtuple("MasterRegistry", ["result"])
+_SlavePipeBase = collections.namedtuple("_SlavePipeBase", ["identifier", "queue", "result"])
 
 
 class SlavePipe(_SlavePipeBase):
@@ -51,7 +47,7 @@ class SlavePipe(_SlavePipeBase):
         return ret
 
 
-class SyncMaster(object):
+class SyncMaster:
     """An abstract `SyncMaster` object.
     - During the replication, as the data parallel will trigger an callback of each module, all slave devices should
     call `register(id)` and obtain an `SlavePipe` to communicate with the master.
@@ -72,10 +68,10 @@ class SyncMaster(object):
         self._activated = False
 
     def __getstate__(self):
-        return {'master_callback': self._master_callback}
+        return {"master_callback": self._master_callback}
 
     def __setstate__(self, state):
-        self.__init__(state['master_callback'])
+        self.__init__(state["master_callback"])
 
     def register_slave(self, identifier):
         """
@@ -85,7 +81,7 @@ class SyncMaster(object):
         Returns: a `SlavePipe` object which can be used to communicate with the master device.
         """
         if self._activated:
-            assert self._queue.empty(), 'Queue is not clean before next initialization.'
+            assert self._queue.empty(), "Queue is not clean before next initialization."
             self._activated = False
             self._registry.clear()
         future = FutureResult()
@@ -110,7 +106,7 @@ class SyncMaster(object):
             intermediates.append(self._queue.get())
 
         results = self._master_callback(intermediates)
-        assert results[0][0] == 0, 'The first result should belongs to the master.'
+        assert results[0][0] == 0, "The first result should belongs to the master."
 
         for i, res in results:
             if i == 0:
@@ -126,21 +122,22 @@ class SyncMaster(object):
     def nr_slaves(self):
         return len(self._registry)
 
-__all__ = ['SynchronizedBatchNorm1d', 'SynchronizedBatchNorm2d', 'SynchronizedBatchNorm3d']
+
+__all__ = ["SynchronizedBatchNorm1d", "SynchronizedBatchNorm2d", "SynchronizedBatchNorm3d"]
 
 
 def _sum_ft(tensor):
-    """sum over the first and last dimention"""
+    """Sum over the first and last dimention"""
     return tensor.sum(dim=0).sum(dim=-1)
 
 
 def _unsqueeze_ft(tensor):
-    """add new dementions at the front and the tail"""
+    """Add new dementions at the front and the tail"""
     return tensor.unsqueeze(0).unsqueeze(-1)
 
 
-_ChildMessage = collections.namedtuple('_ChildMessage', ['sum', 'ssum', 'sum_size'])
-_MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'inv_std'])
+_ChildMessage = collections.namedtuple("_ChildMessage", ["sum", "ssum", "sum_size"])
+_MasterMessage = collections.namedtuple("_MasterMessage", ["sum", "inv_std"])
 
 
 class _SynchronizedBatchNorm(_BatchNorm):
@@ -157,8 +154,15 @@ class _SynchronizedBatchNorm(_BatchNorm):
         # If it is not parallel computation or is in evaluation mode, use PyTorch's implementation.
         if not (self._is_parallel and self.training):
             return F.batch_norm(
-                input, self.running_mean, self.running_var, self.weight, self.bias,
-                self.training, self.momentum, self.eps)
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                self.training,
+                self.momentum,
+                self.eps,
+            )
 
         # Resize the input to (B, C, -1).
         input_shape = input.size()
@@ -167,7 +171,7 @@ class _SynchronizedBatchNorm(_BatchNorm):
         # Compute the sum and square-sum.
         sum_size = input.size(0) * input.size(2)
         input_sum = _sum_ft(input)
-        input_ssum = _sum_ft(input ** 2)
+        input_ssum = _sum_ft(input**2)
 
         # Reduce-and-broadcast the statistics.
         if self._parallel_id == 0:
@@ -197,7 +201,6 @@ class _SynchronizedBatchNorm(_BatchNorm):
 
     def _data_parallel_master(self, intermediates):
         """Reduce the sum and square-sum, compute the statistics, and broadcast it."""
-
         # Always using same "device order" makes the ReduceAdd operation faster.
         # Thanks to:: Tete Xiao (http://tetexiao.com/)
         intermediates = sorted(intermediates, key=lambda i: i[1].sum.get_device())
@@ -214,14 +217,15 @@ class _SynchronizedBatchNorm(_BatchNorm):
 
         outputs = []
         for i, rec in enumerate(intermediates):
-            outputs.append((rec[0], _MasterMessage(*broadcasted[i * 2:i * 2 + 2])))
+            outputs.append((rec[0], _MasterMessage(*broadcasted[i * 2 : i * 2 + 2])))
 
         return outputs
 
     def _compute_mean_std(self, sum_, ssum, size):
         """Compute the mean and standard-deviation with sum and square-sum. This method
-        also maintains the moving average on the master device."""
-        assert size > 1, 'BatchNorm computes unbiased standard-deviation, which requires size > 1.'
+        also maintains the moving average on the master device.
+        """
+        assert size > 1, "BatchNorm computes unbiased standard-deviation, which requires size > 1."
         mean = sum_ / size
         sumvar = ssum - sum_ * mean
         unbias_var = sumvar / (size - 1)
@@ -268,7 +272,9 @@ class SynchronizedBatchNorm1d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C)` or :math:`(N, C, L)`
         - Output: :math:`(N, C)` or :math:`(N, C, L)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm1d(100)
         >>> # Without Learnable Parameters
@@ -279,8 +285,7 @@ class SynchronizedBatchNorm1d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 2 and input.dim() != 3:
-            raise ValueError('expected 2D or 3D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 2D or 3D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm1d, self)._check_input_dim(input)
 
 
@@ -319,7 +324,9 @@ class SynchronizedBatchNorm2d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C, H, W)`
         - Output: :math:`(N, C, H, W)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm2d(100)
         >>> # Without Learnable Parameters
@@ -330,8 +337,7 @@ class SynchronizedBatchNorm2d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError('expected 4D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 4D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm2d, self)._check_input_dim(input)
 
 
@@ -371,7 +377,9 @@ class SynchronizedBatchNorm3d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C, D, H, W)`
         - Output: :math:`(N, C, D, H, W)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm3d(100)
         >>> # Without Learnable Parameters
@@ -382,6 +390,5 @@ class SynchronizedBatchNorm3d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 5:
-            raise ValueError('expected 5D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 5D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm3d, self)._check_input_dim(input)

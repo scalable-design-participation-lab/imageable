@@ -1,28 +1,16 @@
-#@markdown Utils (segformer encoder)
+# @markdown Utils (segformer encoder)
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import math
 from functools import partial
 
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from timm.models.registry import register_model
-from timm.models.vision_transformer import _cfg
-import math
-import numpy as np
-import os
-import numpy as np
-from tqdm import tqdm
-import random
-
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-
+from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from torch import nn
 
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -36,7 +24,7 @@ class Mlp(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -60,14 +48,14 @@ class Mlp(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0.0, proj_drop=0.0, sr_ratio=1):
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
 
         self.dim = dim
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
 
         self.q = nn.Linear(dim, dim, bias=qkv_bias)
         self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
@@ -84,7 +72,7 @@ class Attention(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -122,17 +110,33 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, sr_ratio=1):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        mlp_ratio=4.0,
+        qkv_bias=False,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+        sr_ratio=1,
+    ):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim,
-            num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
-            attn_drop=attn_drop, proj_drop=drop, sr_ratio=sr_ratio)
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_scale=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+            sr_ratio=sr_ratio,
+        )
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
@@ -141,7 +145,7 @@ class Block(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -162,8 +166,7 @@ class Block(nn.Module):
 
 
 class OverlapPatchEmbed(nn.Module):
-    """ Image to Patch Embedding
-    """
+    """Image to Patch Embedding"""
 
     def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=3, embed_dim=768):
         super().__init__()
@@ -174,15 +177,16 @@ class OverlapPatchEmbed(nn.Module):
         self.patch_size = patch_size
         self.H, self.W = img_size[0] // patch_size[0], img_size[1] // patch_size[1]
         self.num_patches = self.H * self.W
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride,
-                              padding=(patch_size[0] // 2, patch_size[1] // 2))
+        self.proj = nn.Conv2d(
+            in_chans, embed_dim, kernel_size=patch_size, stride=stride, padding=(patch_size[0] // 2, patch_size[1] // 2)
+        )
         self.norm = nn.LayerNorm(embed_dim)
 
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -205,10 +209,24 @@ class OverlapPatchEmbed(nn.Module):
 
 
 class MixVisionTransformer(nn.Module):
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256, 512],
-                 num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
-                 attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
-                 depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1]):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_chans=3,
+        num_classes=1000,
+        embed_dims=[64, 128, 256, 512],
+        num_heads=[1, 2, 4, 8],
+        mlp_ratios=[4, 4, 4, 4],
+        qkv_bias=False,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        norm_layer=nn.LayerNorm,
+        depths=[3, 4, 6, 3],
+        sr_ratios=[8, 4, 2, 1],
+    ):
         super().__init__()
 
         use_pretrain = True
@@ -217,46 +235,98 @@ class MixVisionTransformer(nn.Module):
         self.depths = depths
 
         # patch_embed
-        self.patch_embed1 = OverlapPatchEmbed(img_size=img_size, patch_size=7, stride=4, in_chans=in_chans,
-                                              embed_dim=embed_dims[0])
-        self.patch_embed2 = OverlapPatchEmbed(img_size=img_size // 4, patch_size=3, stride=2, in_chans=embed_dims[0],
-                                              embed_dim=embed_dims[1])
-        self.patch_embed3 = OverlapPatchEmbed(img_size=img_size // 8, patch_size=3, stride=2, in_chans=embed_dims[1],
-                                              embed_dim=embed_dims[2])
-        self.patch_embed4 = OverlapPatchEmbed(img_size=img_size // 16, patch_size=3, stride=2, in_chans=embed_dims[2],
-                                              embed_dim=embed_dims[3])
+        self.patch_embed1 = OverlapPatchEmbed(
+            img_size=img_size, patch_size=7, stride=4, in_chans=in_chans, embed_dim=embed_dims[0]
+        )
+        self.patch_embed2 = OverlapPatchEmbed(
+            img_size=img_size // 4, patch_size=3, stride=2, in_chans=embed_dims[0], embed_dim=embed_dims[1]
+        )
+        self.patch_embed3 = OverlapPatchEmbed(
+            img_size=img_size // 8, patch_size=3, stride=2, in_chans=embed_dims[1], embed_dim=embed_dims[2]
+        )
+        self.patch_embed4 = OverlapPatchEmbed(
+            img_size=img_size // 16, patch_size=3, stride=2, in_chans=embed_dims[2], embed_dim=embed_dims[3]
+        )
         # transformer encoder
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
-        self.block1 = nn.ModuleList([Block(
-            dim=embed_dims[0], num_heads=num_heads[0], mlp_ratio=mlp_ratios[0], qkv_bias=qkv_bias, qk_scale=qk_scale,
-            drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer,
-            sr_ratio=sr_ratios[0])
-            for i in range(depths[0])])
+        self.block1 = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dims[0],
+                    num_heads=num_heads[0],
+                    mlp_ratio=mlp_ratios[0],
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[cur + i],
+                    norm_layer=norm_layer,
+                    sr_ratio=sr_ratios[0],
+                )
+                for i in range(depths[0])
+            ]
+        )
         self.norm1 = norm_layer(embed_dims[0])
 
         cur += depths[0]
-        self.block2 = nn.ModuleList([Block(
-            dim=embed_dims[1], num_heads=num_heads[1], mlp_ratio=mlp_ratios[1], qkv_bias=qkv_bias, qk_scale=qk_scale,
-            drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer,
-            sr_ratio=sr_ratios[1])
-            for i in range(depths[1])])
+        self.block2 = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dims[1],
+                    num_heads=num_heads[1],
+                    mlp_ratio=mlp_ratios[1],
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[cur + i],
+                    norm_layer=norm_layer,
+                    sr_ratio=sr_ratios[1],
+                )
+                for i in range(depths[1])
+            ]
+        )
         self.norm2 = norm_layer(embed_dims[1])
 
         cur += depths[1]
-        self.block3 = nn.ModuleList([Block(
-            dim=embed_dims[2], num_heads=num_heads[2], mlp_ratio=mlp_ratios[2], qkv_bias=qkv_bias, qk_scale=qk_scale,
-            drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer,
-            sr_ratio=sr_ratios[2])
-            for i in range(depths[2])])
+        self.block3 = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dims[2],
+                    num_heads=num_heads[2],
+                    mlp_ratio=mlp_ratios[2],
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[cur + i],
+                    norm_layer=norm_layer,
+                    sr_ratio=sr_ratios[2],
+                )
+                for i in range(depths[2])
+            ]
+        )
         self.norm3 = norm_layer(embed_dims[2])
 
         cur += depths[2]
-        self.block4 = nn.ModuleList([Block(
-            dim=embed_dims[3], num_heads=num_heads[3], mlp_ratio=mlp_ratios[3], qkv_bias=qkv_bias, qk_scale=qk_scale,
-            drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer,
-            sr_ratio=sr_ratios[3])
-            for i in range(depths[3])])
+        self.block4 = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dims[3],
+                    num_heads=num_heads[3],
+                    mlp_ratio=mlp_ratios[3],
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[cur + i],
+                    norm_layer=norm_layer,
+                    sr_ratio=sr_ratios[3],
+                )
+                for i in range(depths[3])
+            ]
+        )
         self.norm4 = norm_layer(embed_dims[3])
 
         # classification head
@@ -268,10 +338,9 @@ class MixVisionTransformer(nn.Module):
             print("loading pretrained model")
             self._load_pretrained_model()
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -286,7 +355,7 @@ class MixVisionTransformer(nn.Module):
 
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
-            print('loaded')
+            print("loaded")
 
     def reset_drop_path(self, drop_path_rate):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(self.depths))]
@@ -311,7 +380,7 @@ class MixVisionTransformer(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'pos_embed1', 'pos_embed2', 'pos_embed3', 'pos_embed4', 'cls_token'}  # has pos_embed may be better
+        return {"pos_embed1", "pos_embed2", "pos_embed3", "pos_embed4", "cls_token"}  # has pos_embed may be better
 
     # for segmentational pre-trained weights
     """
@@ -336,7 +405,7 @@ class MixVisionTransformer(nn.Module):
     # for ImageNet pre-trained weights
     def _load_pretrained_model(self):
         # path = 'weights/init/'
-        pretrain_dict = torch.load(str(mit_b2_path)) # changeable
+        pretrain_dict = torch.load(str(mit_b2_path))  # changeable
         pretrain_dict = pretrain_dict
         model_dict = {}
         state_dict = self.state_dict()
@@ -349,13 +418,12 @@ class MixVisionTransformer(nn.Module):
                 count = count + 1
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
-        print('loading completed')
-
+        print("loading completed")
 
     def get_classifier(self):
         return self.head
 
-    def reset_classifier(self, num_classes, global_pool=''):
+    def reset_classifier(self, num_classes, global_pool=""):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
@@ -418,96 +486,116 @@ class DWConv(nn.Module):
         return x
 
 
-
-
 class mit_b0(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b0, self).__init__(
-            patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
-
+            patch_size=4,
+            embed_dims=[32, 64, 160, 256],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[2, 2, 2, 2],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
 class mit_b1(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b1, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
-
+            patch_size=4,
+            embed_dims=[64, 128, 320, 512],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[2, 2, 2, 2],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
 class mit_b2(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b2, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            patch_size=4,
+            embed_dims=[64, 128, 320, 512],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[3, 4, 6, 3],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
 class mit_b3(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b3, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
-
+            patch_size=4,
+            embed_dims=[64, 128, 320, 512],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[3, 4, 18, 3],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
 class mit_b4(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b4, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
-
+            patch_size=4,
+            embed_dims=[64, 128, 320, 512],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[3, 8, 27, 3],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
 class mit_b5(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b5, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            patch_size=4,
+            embed_dims=[64, 128, 320, 512],
+            num_heads=[1, 2, 5, 8],
+            mlp_ratios=[4, 4, 4, 4],
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            depths=[3, 6, 40, 3],
+            sr_ratios=[8, 4, 2, 1],
+            drop_rate=0.0,
+            drop_path_rate=0.1,
+        )
 
 
-#@markdown Utils (SAMixerHead)
-from __future__ import absolute_import
+# @markdown Utils (SAMixerHead)
 
 import warnings
-from functools import partial
+
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from functools import partial
-
+from torch import nn
 from torch.nn.init import calculate_gain
-from torch.autograd import Function
-from torch.autograd import Variable
 from torch.nn.parameter import Parameter
-from torch.hub import load_state_dict_from_url
-
-import torch.linalg as linalg
-
-from einops import rearrange
-from einops.layers.torch import Rearrange
-
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from timm.models.registry import register_model
-from timm.models.vision_transformer import _cfg
-from timm.models.helpers import build_model_with_cfg
-
-import math
-import numpy as np
-
 
 
 ############# for material encoding module #############
 def conv3x3(in_planes, out_planes, stride=1):
-    "3x3 convolution with padding"
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+    """3x3 convolution with padding"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
 
 ##########
@@ -517,28 +605,26 @@ class VecAxTrans(nn.Module):
         self.mod2dTo1d = mod2dTo1d
 
     def forward(self, x):
-
         if self.mod2dTo1d:
-            x = x.squeeze(-1).transpose(-1, -2) # 2-D to 1-D for spatial extend
+            x = x.squeeze(-1).transpose(-1, -2)  # 2-D to 1-D for spatial extend
 
         else:
-            x = x.transpose(-1, -2).unsqueeze(-1) # 1-D to 2-D for spatial extend
+            x = x.transpose(-1, -2).unsqueeze(-1)  # 1-D to 2-D for spatial extend
 
         return x
-
 
 
 class ParamGNorm(nn.Module):
-    def __init__(self, H=1, W=1, AxTrans=False, param=True, w=1., k=0.):
+    def __init__(self, H=1, W=1, AxTrans=False, param=True, w=1.0, k=0.0):
         super(ParamGNorm, self).__init__()
         if param:
             if AxTrans:
-                points = int(H*W)
-                self.gamma = Parameter(w*torch.ones(1, points, 1))
-                self.beta = Parameter(k*torch.ones(1, points, 1))
+                points = int(H * W)
+                self.gamma = Parameter(w * torch.ones(1, points, 1))
+                self.beta = Parameter(k * torch.ones(1, points, 1))
             else:
-                self.gamma = Parameter(w*torch.ones(1, 1, H, W))
-                self.beta = Parameter(k*torch.ones(1, 1, H, W))
+                self.gamma = Parameter(w * torch.ones(1, 1, H, W))
+                self.beta = Parameter(k * torch.ones(1, 1, H, W))
 
         self.AxTrans = AxTrans
         self.param = param
@@ -546,33 +632,31 @@ class ParamGNorm(nn.Module):
     def forward(self, x):
         if self.param:
             if self.AxTrans:
-                x = (x - x.mean(dim=-1, keepdim=True))/(x.std(dim=-1, keepdim=True) + 1e-12)
+                x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-12)
                 x = self.gamma * x + self.beta
 
             else:
-                x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+                x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
                 x = self.gamma * x + self.beta
+        elif self.AxTrans:
+            x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-12)
+
         else:
-            if self.AxTrans:
-                x = (x - x.mean(dim=-1, keepdim=True))/(x.std(dim=-1, keepdim=True) + 1e-12)
-
-            else:
-                x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+            x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
 
         return x
-
 
 
 class LayerGNorm(nn.Module):
-    def __init__(self, dim=1, AxTrans=False, param=True, w=1., k=0.):
+    def __init__(self, dim=1, AxTrans=False, param=True, w=1.0, k=0.0):
         super(LayerGNorm, self).__init__()
         if param:
             if AxTrans:
-                self.gamma = Parameter(w*torch.ones(1, 1, dim)) # [b,l,c]
-                self.beta = Parameter(k*torch.ones(1, 1, dim))
+                self.gamma = Parameter(w * torch.ones(1, 1, dim))  # [b,l,c]
+                self.beta = Parameter(k * torch.ones(1, 1, dim))
             else:
-                self.gamma = Parameter(w*torch.ones(1, dim, 1, 1)) # [b,c,h,w]
-                self.beta = Parameter(k*torch.ones(1, dim, 1, 1))
+                self.gamma = Parameter(w * torch.ones(1, dim, 1, 1))  # [b,c,h,w]
+                self.beta = Parameter(k * torch.ones(1, dim, 1, 1))
 
         self.AxTrans = AxTrans
         self.param = param
@@ -580,75 +664,71 @@ class LayerGNorm(nn.Module):
     def forward(self, x):
         if self.param:
             if self.AxTrans:
-                x = (x - x.mean(dim=-1, keepdim=True))/(x.std(dim=-1, keepdim=True) + 1e-12)
+                x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-12)
                 x = self.gamma * x + self.beta
 
             else:
-                x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+                x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
                 x = self.gamma * x + self.beta
+        elif self.AxTrans:
+            x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-12)
+
         else:
-            if self.AxTrans:
-                x = (x - x.mean(dim=-1, keepdim=True))/(x.std(dim=-1, keepdim=True) + 1e-12)
-
-            else:
-                x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+            x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
 
         return x
 
 
-
 class LayerGNormMS(nn.Module):
-    def __init__(self, dim=1, param=True, w=1., k=0., l=6):
+    def __init__(self, dim=1, param=True, w=1.0, k=0.0, l=6):
         super(LayerGNormMS, self).__init__()
         if param:
-            self.gamma = Parameter(w*torch.ones(1, l, dim, 1, 1)) # [b,l,c,h,w]
-            self.beta = Parameter(k*torch.ones(1, l, dim, 1, 1))
+            self.gamma = Parameter(w * torch.ones(1, l, dim, 1, 1))  # [b,l,c,h,w]
+            self.beta = Parameter(k * torch.ones(1, l, dim, 1, 1))
 
         self.param = param
 
     def forward(self, x):
         if self.param:
-            x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+            x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
             x = self.gamma * x + self.beta
         else:
-            x = (x - x.mean(dim=1, keepdim=True))/(x.std(dim=1, keepdim=True) + 1e-12)
+            x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-12)
 
         return x
-
 
 
 class ChOverlapAvg(nn.Module):
     def __init__(self, kernel_size=32, reduct_rate=16):
         super(ChOverlapAvg, self).__init__()
-        self.pad = nn.ReflectionPad1d(padding=(kernel_size//2, 0)) # left padding only
+        self.pad = nn.ReflectionPad1d(padding=(kernel_size // 2, 0))  # left padding only
         self.avg = nn.AvgPool1d(kernel_size=kernel_size, stride=reduct_rate)
 
         self.kernel_size = kernel_size
         self.reduct_rate = reduct_rate
 
     def forward(self, x):
-        b,c,l = x.shape
+        b, c, l = x.shape
 
         if l < self.kernel_size:
             x = F.avg_pool1d(l)(x)
+        elif self.kernel_size > self.reduct_rate:
+            x = self.avg(self.pad(x))
         else:
-            if self.kernel_size > self.reduct_rate:
-                x = self.avg(self.pad(x))
-            else:
-                x = self.avg(x)
+            x = self.avg(x)
 
         return x
+
 
 ##############
 
 
-
-
 # This module is adopted from Decoupled Dynamic Filter Networks: https://github.com/theFoxofSky/ddfnet (CVPR 2021)
 class FilterNorm(nn.Module):
-    def __init__(self, in_channels, kernel_size, filter_type,
-                 nonlinearity='linear', running_std=False, running_mean=False):
-        assert filter_type in ('spatial', 'channel')
+    def __init__(
+        self, in_channels, kernel_size, filter_type, nonlinearity="linear", running_std=False, running_mean=False
+    ):
+        assert filter_type in ("spatial", "channel")
         assert in_channels >= 1
         super(FilterNorm, self).__init__()
         self.in_channels = in_channels
@@ -657,16 +737,14 @@ class FilterNorm(nn.Module):
         self.runing_mean = running_mean
         std = calculate_gain(nonlinearity) / kernel_size
         if running_std:
-            self.std = nn.Parameter(
-                torch.randn(in_channels * kernel_size ** 2) * std, requires_grad=True)
+            self.std = nn.Parameter(torch.randn(in_channels * kernel_size**2) * std, requires_grad=True)
         else:
             self.std = std
         if running_mean:
-            self.mean = nn.Parameter(
-                torch.randn(in_channels * kernel_size ** 2), requires_grad=True)
+            self.mean = nn.Parameter(torch.randn(in_channels * kernel_size**2), requires_grad=True)
 
     def forward(self, x):
-        if self.filter_type == 'spatial':
+        if self.filter_type == "spatial":
             b, _, h, w = x.size()
             x = x.view(b, self.in_channels, -1, h, w)
             x = x - x.mean(dim=2).reshape(b, self.in_channels, 1, h, w)
@@ -678,9 +756,9 @@ class FilterNorm(nn.Module):
                 x = x * self.std
             if self.runing_mean:
                 x = x + self.mean[None, :, None, None]
-        elif self.filter_type == 'channel':
+        elif self.filter_type == "channel":
             b, h, w = x.size(0), x.size(2), x.size(3)
-            #l = int(h*w)
+            # l = int(h*w)
             c = self.in_channels
             x = x.view(b, c, -1)
             x = x - x.mean(dim=2, keepdim=True)
@@ -692,15 +770,13 @@ class FilterNorm(nn.Module):
                 x = x * self.std
             if self.runing_mean:
                 x = x + self.mean[None, :, None]
-            x = x.view(b,c,h,w)
+            x = x.view(b, c, h, w)
         else:
-            raise RuntimeError('Unsupported filter type {}'.format(self.filter_type))
+            raise RuntimeError(f"Unsupported filter type {self.filter_type}")
         return x
+
+
 #####################
-
-
-
-
 
 
 # SAMixer's definition
@@ -710,7 +786,7 @@ class SAMixer(nn.Module):
 
         self.spatial = spatial
 
-        self.sign = 'SAMixer' #
+        self.sign = "SAMixer"
 
         # fusion computation
         group_channels = 64
@@ -719,66 +795,60 @@ class SAMixer(nn.Module):
 
         T = 2
         self.T = T
-        Ws = T #int(T*T)
+        Ws = T  # int(T*T)
         self.paths = branches + 1
         self.avg_local1 = nn.Sequential(
-                                 nn.Conv2d(dim, dim, kernel_size=Ws, stride=Ws, groups=dim, bias=False),
-                                 nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
-                                 nn.Conv2d(dim, dim, kernel_size=1, bias=True)
-                                     ) # sr conv like avg enco
+            nn.Conv2d(dim, dim, kernel_size=Ws, stride=Ws, groups=dim, bias=False),
+            nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
+            nn.Conv2d(dim, dim, kernel_size=1, bias=True),
+        )  # sr conv like avg enco
 
         self.avg_local2 = nn.Sequential(
-                                 nn.Conv2d(dim, dim, kernel_size=Ws, stride=Ws, groups=dim, bias=False),
-                                 nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
-                                 nn.Conv2d(dim, dim, kernel_size=1, bias=True)
-                                     ) # sr conv like avg enco
+            nn.Conv2d(dim, dim, kernel_size=Ws, stride=Ws, groups=dim, bias=False),
+            nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
+            nn.Conv2d(dim, dim, kernel_size=1, bias=True),
+        )  # sr conv like avg enco
 
-
-        self.norm0 = nn.LayerNorm(dim, eps=1e-12) #LayerGNorm(dim=dim, AxTrans=True)
-        self.norm1 = nn.LayerNorm(dim, eps=1e-12) #LayerGNorm(dim=dim, AxTrans=True)
-        self.norm2 = nn.LayerNorm(dim, eps=1e-12) #LayerGNorm(dim=dim, AxTrans=True)
-        self.norm3 = nn.LayerNorm(dim, eps=1e-12) #LayerGNorm(dim=dim, AxTrans=True)
-        self.norm4 = nn.LayerNorm(dim, eps=1e-12) #LayerGNorm(dim=dim, AxTrans=True)
-
+        self.norm0 = nn.LayerNorm(dim, eps=1e-12)  # LayerGNorm(dim=dim, AxTrans=True)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-12)  # LayerGNorm(dim=dim, AxTrans=True)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-12)  # LayerGNorm(dim=dim, AxTrans=True)
+        self.norm3 = nn.LayerNorm(dim, eps=1e-12)  # LayerGNorm(dim=dim, AxTrans=True)
+        self.norm4 = nn.LayerNorm(dim, eps=1e-12)  # LayerGNorm(dim=dim, AxTrans=True)
 
         self.q = nn.Linear(dim, dim, bias=True)
         self.kv = nn.Linear(dim, dim * 2, bias=True)
 
-        self.scl = (self.d)**-0.5
+        self.scl = (self.d) ** -0.5
 
         self.softmax = nn.Softmax(dim=-1)
 
         self.proj = nn.Linear(dim, dim, bias=True)
 
         self.pos_deco = nn.Sequential(
-                                    FilterNorm(dim, 1, 'channel', 'relu', running_std=True),
-                                    nn.Conv2d(dim, int(T*T), kernel_size=1, bias=True)
-                                    ) # param list: 'in_channels' (heads), 'kernel_size' (win_size), 'type', 'nonlinearity'
-
+            FilterNorm(dim, 1, "channel", "relu", running_std=True),
+            nn.Conv2d(dim, int(T * T), kernel_size=1, bias=True),
+        )  # param list: 'in_channels' (heads), 'kernel_size' (win_size), 'type', 'nonlinearity'
 
         # form-1: 1*1 dense -> 3*3 dw
-        self.norm_inner = LayerGNorm(dim=dim) # 2d norm
+        self.norm_inner = LayerGNorm(dim=dim)  # 2d norm
 
         expand_ratio = 2
         self.mlp = nn.Sequential(
-                                 nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1, groups=dim, bias=False),
-                                 nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
-                                 nn.Conv2d(dim, dim * expand_ratio, kernel_size=1, bias=True),
-                                 act_layer(),
-                                 nn.Conv2d(dim * expand_ratio, dim, kernel_size=1, bias=True)
-                                     )
+            nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1, groups=dim, bias=False),
+            nn.GroupNorm(num_groups=dim, num_channels=dim, eps=1e-12),
+            nn.Conv2d(dim, dim * expand_ratio, kernel_size=1, bias=True),
+            act_layer(),
+            nn.Conv2d(dim * expand_ratio, dim, kernel_size=1, bias=True),
+        )
 
         self.norm_outer = nn.LayerNorm(dim, eps=1e-12)
 
         self.proj_top = nn.Sequential(
-                                nn.Conv2d(dim, dim, kernel_size=1, bias=False),
-                                norm_layer(dim, eps=1e-12),
-                                act_layer()
-                                         )
+            nn.Conv2d(dim, dim, kernel_size=1, bias=False), norm_layer(dim, eps=1e-12), act_layer()
+        )
 
         # init
         self.reset_parameters()
-
 
     @torch.jit.script
     def combine_mul(x, attn):
@@ -790,9 +860,21 @@ class SAMixer(nn.Module):
 
     @torch.jit.script
     def combine_add_inputs(x1, x2, x3, x4):
-        return F.interpolate( F.interpolate(F.interpolate(x1, scale_factor=2., mode='bilinear', align_corners=False) \
-                                            + x2, scale_factor=2., mode='bilinear', align_corners=False) + x3, scale_factor=2., mode='bilinear', align_corners=False) + x4
-
+        return (
+            F.interpolate(
+                F.interpolate(
+                    F.interpolate(x1, scale_factor=2.0, mode="bilinear", align_corners=False) + x2,
+                    scale_factor=2.0,
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                + x3,
+                scale_factor=2.0,
+                mode="bilinear",
+                align_corners=False,
+            )
+            + x4
+        )
 
     def forward(self, x1, x2, x3, x4):
         b, c, h, w = x1.shape
@@ -800,49 +882,84 @@ class SAMixer(nn.Module):
         ## parametric adaptation (shift computation)
         T, g, d = self.T, self.g, c // self.g
 
-        x = self.combine_add_inputs(x1, x2, x3, x4) # main feature, [b, c, h*8, w*8]
+        x = self.combine_add_inputs(x1, x2, x3, x4)  # main feature, [b, c, h*8, w*8]
 
         ## avg enco
         # partition windows
-        H, W = h*4, w*4
+        H, W = h * 4, w * 4
         N = H * W
-        B = b*N
+        B = b * N
 
         # MHSA
         box0 = self.norm0(self.avg_local1(x).view(b, 1, c, N).permute(0, 3, 1, 2).reshape(B, 1, c))
-        q = self.q(box0).view(B, 1, g, d).transpose(1, 2) * self.scl # only x serves as the q, [B, g, 1, d]
-        kv0 = self.kv(box0).view(B, 1, 2, g, d).permute(2, 0, 3, 1, 4) # [2, B, g, 1, d]
+        q = self.q(box0).view(B, 1, g, d).transpose(1, 2) * self.scl  # only x serves as the q, [B, g, 1, d]
+        kv0 = self.kv(box0).view(B, 1, 2, g, d).permute(2, 0, 3, 1, 4)  # [2, B, g, 1, d]
 
-        kv1 = F.interpolate(self.kv(self.norm1(x1.view(b, c, N//16).transpose(1, -1).contiguous())).transpose(1, -1).reshape(b, 2*c, h, w), scale_factor=4)\
-            .view(b, 1, 2*c, N).permute(0, 3, 1, 2).reshape(B, 1, 2, g, d).permute(2, 0, 3, 1, 4)
+        kv1 = (
+            F.interpolate(
+                self.kv(self.norm1(x1.view(b, c, N // 16).transpose(1, -1).contiguous()))
+                .transpose(1, -1)
+                .reshape(b, 2 * c, h, w),
+                scale_factor=4,
+            )
+            .view(b, 1, 2 * c, N)
+            .permute(0, 3, 1, 2)
+            .reshape(B, 1, 2, g, d)
+            .permute(2, 0, 3, 1, 4)
+        )
 
-        kv2 = F.interpolate(self.kv(self.norm2(x2.view(b, c, N//4).transpose(1, -1).contiguous())).transpose(1, -1).reshape(b, 2*c, h*2, w*2), scale_factor=2)\
-            .view(b, 1, 2*c, N).permute(0, 3, 1, 2).reshape(B, 1, 2, g, d).permute(2, 0, 3, 1, 4)
+        kv2 = (
+            F.interpolate(
+                self.kv(self.norm2(x2.view(b, c, N // 4).transpose(1, -1).contiguous()))
+                .transpose(1, -1)
+                .reshape(b, 2 * c, h * 2, w * 2),
+                scale_factor=2,
+            )
+            .view(b, 1, 2 * c, N)
+            .permute(0, 3, 1, 2)
+            .reshape(B, 1, 2, g, d)
+            .permute(2, 0, 3, 1, 4)
+        )
 
-        kv3 = self.kv(self.norm3(x3.view(b, 1, c, N).permute(0, 3, 1, 2).reshape(B, 1, c))).view(B, 1, 2, g, d).permute(2, 0, 3, 1, 4) # [2, B, g, 1, d]
+        kv3 = (
+            self.kv(self.norm3(x3.view(b, 1, c, N).permute(0, 3, 1, 2).reshape(B, 1, c)))
+            .view(B, 1, 2, g, d)
+            .permute(2, 0, 3, 1, 4)
+        )  # [2, B, g, 1, d]
 
-        kv4 = self.kv(self.norm4(self.avg_local2(x4).view(b, 1, c, N).permute(0, 3, 1, 2).reshape(B, 1, c))).view(B, 1, 2, g, d).permute(2, 0, 3, 1, 4) # [2, B, g, 1, d]
+        kv4 = (
+            self.kv(self.norm4(self.avg_local2(x4).view(b, 1, c, N).permute(0, 3, 1, 2).reshape(B, 1, c)))
+            .view(B, 1, 2, g, d)
+            .permute(2, 0, 3, 1, 4)
+        )  # [2, B, g, 1, d]
 
+        kv = torch.cat([kv0, kv1, kv2, kv3, kv4], dim=3)  # [2, B, g, l, d]
+        k, v = kv[0], kv[1]  # [B, g, l, d]
 
-        kv = torch.cat([kv0, kv1, kv2, kv3, kv4], dim=3) # [2, B, g, l, d]
-        k, v = kv[0], kv[1] # [B, g, l, d]
-
-
-        sim = q @ k.transpose(-2, -1) # b g 1 d, b g l c -> b g 1 l
+        sim = q @ k.transpose(-2, -1)  # b g 1 d, b g l c -> b g 1 l
         sim = self.softmax(sim)
-        u_attn = (sim @ v).transpose(1, 2).reshape(B, 1, c) # b g i j, b g j c -> b g i c (i=1, j=4)
+        u_attn = (sim @ v).transpose(1, 2).reshape(B, 1, c)  # b g i j, b g j c -> b g i c (i=1, j=4)
 
         # position decoding
-        u_attn = self.proj(u_attn).view(b, H, W, c).permute(0, 3, 1, 2) # [b, c, h, w]
+        u_attn = self.proj(u_attn).view(b, H, W, c).permute(0, 3, 1, 2)  # [b, c, h, w]
 
-
-        u_attn = self.combine_add(u_attn.unsqueeze(2), self.pos_deco(u_attn).unsqueeze(1) )\
-            .view(b, c, T, T, H, W).permute(0, 1, 4, 2, 5, 3).reshape(b, c, H*T, W*T) # [b, c, 1, h, w], [b, 1, T*T, h, w], [b, c, T*T, h, w]
-
+        u_attn = (
+            self.combine_add(u_attn.unsqueeze(2), self.pos_deco(u_attn).unsqueeze(1))
+            .view(b, c, T, T, H, W)
+            .permute(0, 1, 4, 2, 5, 3)
+            .reshape(b, c, H * T, W * T)
+        )  # [b, c, 1, h, w], [b, 1, T*T, h, w], [b, c, T*T, h, w]
 
         # FFN
         x = self.combine_add(x, u_attn)
-        x = self.proj_top(self.combine_add(x, self.norm_outer(self.mlp(self.norm_inner(x)).flatten(2).transpose(1,-1) ).transpose(1,-1).reshape(b, c, H*T, W*T) ) )
+        x = self.proj_top(
+            self.combine_add(
+                x,
+                self.norm_outer(self.mlp(self.norm_inner(x)).flatten(2).transpose(1, -1))
+                .transpose(1, -1)
+                .reshape(b, c, H * T, W * T),
+            )
+        )
 
         return x
 
@@ -851,22 +968,22 @@ class SAMixer(nn.Module):
         # conv and bn init
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Linear)):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.GroupNorm, nn.LayerNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+
 #################
-
-
-
 
 
 class MLP(nn.Module):
     """
     Linear Embedding
     """
+
     def __init__(self, input_dim=2048, embed_dim=768):
         super().__init__()
         self.proj = nn.Linear(input_dim, embed_dim)
@@ -876,7 +993,7 @@ class MLP(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -891,10 +1008,9 @@ class MLP(nn.Module):
 
         # print('decoder init')
 
-
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
-            print('loaded')
+            print("loaded")
 
     def forward(self, x):
         x = x.flatten(2).transpose(1, 2)
@@ -902,14 +1018,21 @@ class MLP(nn.Module):
         return x
 
 
-
-
 class SAMixerHead(nn.Module):
-    """
-    """
-    def __init__(self, in_channels=[64, 128, 320, 512], feature_strides=[4, 8, 16, 32],
-                 embedding_dim=768, norm_layer=nn.BatchNorm2d, num_classes=20,
-                 in_index=[0, 1, 2, 3], dropout_ratio=0.1, input_transform='multiple_select', align_corners=False):
+    """ """
+
+    def __init__(
+        self,
+        in_channels=[64, 128, 320, 512],
+        feature_strides=[4, 8, 16, 32],
+        embedding_dim=768,
+        norm_layer=nn.BatchNorm2d,
+        num_classes=20,
+        in_index=[0, 1, 2, 3],
+        dropout_ratio=0.1,
+        input_transform="multiple_select",
+        align_corners=False,
+    ):
         super(SAMixerHead, self).__init__()
         self.feature_strides = feature_strides
         self.num_classes = num_classes
@@ -922,7 +1045,6 @@ class SAMixerHead(nn.Module):
         assert min(feature_strides) == feature_strides[0]
 
         c1_in_channels, c2_in_channels, c3_in_channels, c4_in_channels = self.in_channels
-
 
         self.linear_c4 = MLP(input_dim=c4_in_channels, embed_dim=embedding_dim)
         self.linear_c3 = MLP(input_dim=c3_in_channels, embed_dim=embedding_dim)
@@ -937,11 +1059,9 @@ class SAMixerHead(nn.Module):
         # init
         self.apply(self._init_weights)
 
-
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -956,40 +1076,32 @@ class SAMixerHead(nn.Module):
 
         # print('decoder init')
 
-
-
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
-            print('loaded')
-
-
+            print("loaded")
 
     def _transform_inputs(self, inputs):
         """Transform inputs for decoder.
         Args:
             inputs (list[Tensor]): List of multi-level img features.
-        Returns:
+
+        Returns
+        -------
             Tensor: The transformed inputs
         """
-
-        if self.input_transform == 'resize_concat':
+        if self.input_transform == "resize_concat":
             inputs = [inputs[i] for i in self.in_index]
             upsampled_inputs = [
-                resize(
-                    input=x,
-                    size=inputs[0].shape[2:],
-                    mode='bilinear',
-                    align_corners=self.align_corners) for x in inputs
+                resize(input=x, size=inputs[0].shape[2:], mode="bilinear", align_corners=self.align_corners)
+                for x in inputs
             ]
             inputs = torch.cat(upsampled_inputs, dim=1)
-        elif self.input_transform == 'multiple_select':
+        elif self.input_transform == "multiple_select":
             inputs = [inputs[i] for i in self.in_index]
         else:
             inputs = inputs[self.in_index]
 
         return inputs
-
-
 
     def forward(self, inputs):
         x = self._transform_inputs(inputs)  # len=4, 1/4,1/8,1/16,1/32
@@ -998,10 +1110,10 @@ class SAMixerHead(nn.Module):
         ############## MLP decoder on C1-C4 ###########
         n, _, h, w = c4.shape
 
-        _c4 = self.linear_c4(c4).permute(0,2,1).reshape(n, -1, c4.shape[2], c4.shape[3])
-        _c3 = self.linear_c3(c3).permute(0,2,1).reshape(n, -1, c3.shape[2], c3.shape[3])
-        _c2 = self.linear_c2(c2).permute(0,2,1).reshape(n, -1, c2.shape[2], c2.shape[3])
-        _c1 = self.linear_c1(c1).permute(0,2,1).reshape(n, -1, c1.shape[2], c1.shape[3])
+        _c4 = self.linear_c4(c4).permute(0, 2, 1).reshape(n, -1, c4.shape[2], c4.shape[3])
+        _c3 = self.linear_c3(c3).permute(0, 2, 1).reshape(n, -1, c3.shape[2], c3.shape[3])
+        _c2 = self.linear_c2(c2).permute(0, 2, 1).reshape(n, -1, c2.shape[2], c2.shape[3])
+        _c1 = self.linear_c1(c1).permute(0, 2, 1).reshape(n, -1, c1.shape[2], c1.shape[3])
 
         _c = self.mixer(_c4, _c3, _c2, _c1)
 
@@ -1010,43 +1122,37 @@ class SAMixerHead(nn.Module):
 
         return x
 
-#################
 
+#################
 
 
 ########################## ops functions ##########################
 
-def resize(input,
-           size=None,
-           scale_factor=None,
-           mode='nearest',
-           align_corners=None,
-           warning=True):
+
+def resize(input, size=None, scale_factor=None, mode="nearest", align_corners=None, warning=True):
     if warning:
         if size is not None and align_corners:
             input_h, input_w = tuple(int(x) for x in input.shape[2:])
             output_h, output_w = tuple(int(x) for x in size)
             if output_h > input_h or output_w > output_h:
-                if ((output_h > 1 and output_w > 1 and input_h > 1
-                     and input_w > 1) and (output_h - 1) % (input_h - 1)
-                        and (output_w - 1) % (input_w - 1)):
+                if (
+                    (output_h > 1 and output_w > 1 and input_h > 1 and input_w > 1)
+                    and (output_h - 1) % (input_h - 1)
+                    and (output_w - 1) % (input_w - 1)
+                ):
                     warnings.warn(
-                        f'When align_corners={align_corners}, '
-                        'the output would more aligned if '
-                        f'input size {(input_h, input_w)} is `x+1` and '
-                        f'out size {(output_h, output_w)} is `nx+1`')
+                        f"When align_corners={align_corners}, "
+                        "the output would more aligned if "
+                        f"input size {(input_h, input_w)} is `x+1` and "
+                        f"out size {(output_h, output_w)} is `nx+1`"
+                    )
     if isinstance(size, torch.Size):
         size = tuple(int(x) for x in size)
     return F.interpolate(input, size, scale_factor, mode, align_corners)
 
 
 class Upsample(nn.Module):
-
-    def __init__(self,
-                 size=None,
-                 scale_factor=None,
-                 mode='nearest',
-                 align_corners=None):
+    def __init__(self, size=None, scale_factor=None, mode="nearest", align_corners=None):
         super(Upsample, self).__init__()
         self.size = size
         if isinstance(scale_factor, tuple):
@@ -1063,23 +1169,20 @@ class Upsample(nn.Module):
             size = self.size
         return resize(x, size, None, self.mode, self.align_corners)
 
-#@markdown Utils (SynchronizedBatchNorm2d)
+
+# @markdown Utils (SynchronizedBatchNorm2d)
 import collections
+import queue
+import threading
 
 import torch
-import torch.nn.functional as F
-
 from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
-
-import queue
-import collections
-import threading
+from torch.nn.parallel._functions import Broadcast, ReduceAddCoalesced
 
 # from .comm import SyncMaster
 
 
-class FutureResult(object):
+class FutureResult:
     """A thread-safe future implementation. Used only as one-to-one pipe."""
 
     def __init__(self):
@@ -1089,7 +1192,7 @@ class FutureResult(object):
 
     def put(self, result):
         with self._lock:
-            assert self._result is None, 'Previous result has\'t been fetched.'
+            assert self._result is None, "Previous result has't been fetched."
             self._result = result
             self._cond.notify()
 
@@ -1103,8 +1206,8 @@ class FutureResult(object):
             return res
 
 
-_MasterRegistry = collections.namedtuple('MasterRegistry', ['result'])
-_SlavePipeBase = collections.namedtuple('_SlavePipeBase', ['identifier', 'queue', 'result'])
+_MasterRegistry = collections.namedtuple("MasterRegistry", ["result"])
+_SlavePipeBase = collections.namedtuple("_SlavePipeBase", ["identifier", "queue", "result"])
 
 
 class SlavePipe(_SlavePipeBase):
@@ -1117,7 +1220,7 @@ class SlavePipe(_SlavePipeBase):
         return ret
 
 
-class SyncMaster(object):
+class SyncMaster:
     """An abstract `SyncMaster` object.
     - During the replication, as the data parallel will trigger an callback of each module, all slave devices should
     call `register(id)` and obtain an `SlavePipe` to communicate with the master.
@@ -1138,10 +1241,10 @@ class SyncMaster(object):
         self._activated = False
 
     def __getstate__(self):
-        return {'master_callback': self._master_callback}
+        return {"master_callback": self._master_callback}
 
     def __setstate__(self, state):
-        self.__init__(state['master_callback'])
+        self.__init__(state["master_callback"])
 
     def register_slave(self, identifier):
         """
@@ -1151,7 +1254,7 @@ class SyncMaster(object):
         Returns: a `SlavePipe` object which can be used to communicate with the master device.
         """
         if self._activated:
-            assert self._queue.empty(), 'Queue is not clean before next initialization.'
+            assert self._queue.empty(), "Queue is not clean before next initialization."
             self._activated = False
             self._registry.clear()
         future = FutureResult()
@@ -1176,7 +1279,7 @@ class SyncMaster(object):
             intermediates.append(self._queue.get())
 
         results = self._master_callback(intermediates)
-        assert results[0][0] == 0, 'The first result should belongs to the master.'
+        assert results[0][0] == 0, "The first result should belongs to the master."
 
         for i, res in results:
             if i == 0:
@@ -1192,21 +1295,22 @@ class SyncMaster(object):
     def nr_slaves(self):
         return len(self._registry)
 
-__all__ = ['SynchronizedBatchNorm1d', 'SynchronizedBatchNorm2d', 'SynchronizedBatchNorm3d']
+
+__all__ = ["SynchronizedBatchNorm1d", "SynchronizedBatchNorm2d", "SynchronizedBatchNorm3d"]
 
 
 def _sum_ft(tensor):
-    """sum over the first and last dimention"""
+    """Sum over the first and last dimention"""
     return tensor.sum(dim=0).sum(dim=-1)
 
 
 def _unsqueeze_ft(tensor):
-    """add new dementions at the front and the tail"""
+    """Add new dementions at the front and the tail"""
     return tensor.unsqueeze(0).unsqueeze(-1)
 
 
-_ChildMessage = collections.namedtuple('_ChildMessage', ['sum', 'ssum', 'sum_size'])
-_MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'inv_std'])
+_ChildMessage = collections.namedtuple("_ChildMessage", ["sum", "ssum", "sum_size"])
+_MasterMessage = collections.namedtuple("_MasterMessage", ["sum", "inv_std"])
 
 
 class _SynchronizedBatchNorm(_BatchNorm):
@@ -1223,8 +1327,15 @@ class _SynchronizedBatchNorm(_BatchNorm):
         # If it is not parallel computation or is in evaluation mode, use PyTorch's implementation.
         if not (self._is_parallel and self.training):
             return F.batch_norm(
-                input, self.running_mean, self.running_var, self.weight, self.bias,
-                self.training, self.momentum, self.eps)
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                self.training,
+                self.momentum,
+                self.eps,
+            )
 
         # Resize the input to (B, C, -1).
         input_shape = input.size()
@@ -1233,7 +1344,7 @@ class _SynchronizedBatchNorm(_BatchNorm):
         # Compute the sum and square-sum.
         sum_size = input.size(0) * input.size(2)
         input_sum = _sum_ft(input)
-        input_ssum = _sum_ft(input ** 2)
+        input_ssum = _sum_ft(input**2)
 
         # Reduce-and-broadcast the statistics.
         if self._parallel_id == 0:
@@ -1263,7 +1374,6 @@ class _SynchronizedBatchNorm(_BatchNorm):
 
     def _data_parallel_master(self, intermediates):
         """Reduce the sum and square-sum, compute the statistics, and broadcast it."""
-
         # Always using same "device order" makes the ReduceAdd operation faster.
         # Thanks to:: Tete Xiao (http://tetexiao.com/)
         intermediates = sorted(intermediates, key=lambda i: i[1].sum.get_device())
@@ -1280,14 +1390,15 @@ class _SynchronizedBatchNorm(_BatchNorm):
 
         outputs = []
         for i, rec in enumerate(intermediates):
-            outputs.append((rec[0], _MasterMessage(*broadcasted[i * 2:i * 2 + 2])))
+            outputs.append((rec[0], _MasterMessage(*broadcasted[i * 2 : i * 2 + 2])))
 
         return outputs
 
     def _compute_mean_std(self, sum_, ssum, size):
         """Compute the mean and standard-deviation with sum and square-sum. This method
-        also maintains the moving average on the master device."""
-        assert size > 1, 'BatchNorm computes unbiased standard-deviation, which requires size > 1.'
+        also maintains the moving average on the master device.
+        """
+        assert size > 1, "BatchNorm computes unbiased standard-deviation, which requires size > 1."
         mean = sum_ / size
         sumvar = ssum - sum_ * mean
         unbias_var = sumvar / (size - 1)
@@ -1334,7 +1445,9 @@ class SynchronizedBatchNorm1d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C)` or :math:`(N, C, L)`
         - Output: :math:`(N, C)` or :math:`(N, C, L)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm1d(100)
         >>> # Without Learnable Parameters
@@ -1345,8 +1458,7 @@ class SynchronizedBatchNorm1d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 2 and input.dim() != 3:
-            raise ValueError('expected 2D or 3D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 2D or 3D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm1d, self)._check_input_dim(input)
 
 
@@ -1385,7 +1497,9 @@ class SynchronizedBatchNorm2d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C, H, W)`
         - Output: :math:`(N, C, H, W)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm2d(100)
         >>> # Without Learnable Parameters
@@ -1396,8 +1510,7 @@ class SynchronizedBatchNorm2d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError('expected 4D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 4D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm2d, self)._check_input_dim(input)
 
 
@@ -1437,7 +1550,9 @@ class SynchronizedBatchNorm3d(_SynchronizedBatchNorm):
     Shape:
         - Input: :math:`(N, C, D, H, W)`
         - Output: :math:`(N, C, D, H, W)` (same shape as input)
-    Examples:
+
+    Examples
+    --------
         >>> # With Learnable Parameters
         >>> m = SynchronizedBatchNorm3d(100)
         >>> # Without Learnable Parameters
@@ -1448,18 +1563,16 @@ class SynchronizedBatchNorm3d(_SynchronizedBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 5:
-            raise ValueError('expected 5D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError(f"expected 5D input (got {input.dim()}D input)")
         super(SynchronizedBatchNorm3d, self)._check_input_dim(input)
-        
-        
-    
+
+
 class RMSNet(nn.Module):
     """
     'encoder_id' denotes the type of Mix-Transformer, default: 2, means mit_b2
     """
-    def __init__(self, num_classes=20, backbone='mit_b2', encoder_id=2,
-                 sync_bn=True, freeze_bn=False):
+
+    def __init__(self, num_classes=20, backbone="mit_b2", encoder_id=2, sync_bn=True, freeze_bn=False):
         super(RMSNet, self).__init__()
 
         if sync_bn == True:
@@ -1468,8 +1581,13 @@ class RMSNet(nn.Module):
             norm_layer = nn.BatchNorm2d
 
         self.backbone = mit_b2()
-        self.decoder = SAMixerHead(in_channels=[64, 128, 320, 512], feature_strides=[4, 8, 16, 32],
-                 embedding_dim=768, norm_layer=norm_layer, num_classes=20)
+        self.decoder = SAMixerHead(
+            in_channels=[64, 128, 320, 512],
+            feature_strides=[4, 8, 16, 32],
+            embedding_dim=768,
+            norm_layer=norm_layer,
+            num_classes=20,
+        )
 
         self.freeze_bn = freeze_bn
 
@@ -1481,14 +1599,11 @@ class RMSNet(nn.Module):
         seg_mask = self.decoder(features)
         # print("Built decoder")
 
-        seg_mask = F.interpolate(seg_mask, size=input.size()[2:], mode='bilinear', align_corners=False)
+        seg_mask = F.interpolate(seg_mask, size=input.size()[2:], mode="bilinear", align_corners=False)
 
         return seg_mask
 
-
     def freeze_bn(self):
         for m in self.modules():
-            if isinstance(m, SynchronizedBatchNorm2d):
-                m.eval()
-            elif isinstance(m, nn.BatchNorm2d):
+            if isinstance(m, SynchronizedBatchNorm2d) or isinstance(m, nn.BatchNorm2d):
                 m.eval()

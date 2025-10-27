@@ -1,15 +1,15 @@
 # imageable/models/materials/postprocess.py
 from __future__ import annotations
+
 import numpy as np
-from typing import Dict, Optional, Tuple
 
 
 def colorize_mask(
     mask: np.ndarray,
     palette: np.ndarray,
     *,
-    background_id: Optional[int] = None,
-    background_color: Optional[Tuple[int, int, int]] = None,
+    background_id: int | None = None,
+    background_color: tuple[int, int, int] | None = None,
 ) -> np.ndarray:
     """
     Convert a (H, W) integer mask into an (H, W, 3) uint8 RGB image using an (N, 3) palette.
@@ -58,7 +58,7 @@ def colorize_mask(
             bad = np.unique(flat[~valid])
             raise ValueError(f"mask contains class ids outside palette range: {bad.tolist()}")
 
-        colored = palette[np.clip(flat, 0, palette.shape[0]-1)].astype(np.uint8)
+        colored = palette[np.clip(flat, 0, palette.shape[0] - 1)].astype(np.uint8)
         if background_color is None:
             background_color = (0, 0, 0)
         colored[flat == background_id] = np.array(background_color, dtype=np.uint8)
@@ -67,15 +67,14 @@ def colorize_mask(
     # No background override; enforce strict indexing
     if flat.min() < 0 or flat.max() >= palette.shape[0]:
         raise ValueError(
-            f"mask ids must be within [0, {palette.shape[0]-1}]; "
-            f"found min={int(flat.min())}, max={int(flat.max())}"
+            f"mask ids must be within [0, {palette.shape[0] - 1}]; found min={int(flat.min())}, max={int(flat.max())}"
         )
     return palette[flat].reshape(h, w, 3)
 
 
 def apply_gate_masks(
     materials_mask: np.ndarray,
-    gate: Optional[Dict[str, np.ndarray]],
+    gate: dict[str, np.ndarray] | None,
     *,
     logic: str = "mask_keep",
     outside_id: int = 0,

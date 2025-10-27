@@ -1,4 +1,3 @@
-
 from dataclasses import asdict, dataclass
 
 MAX_DIMENSION = 640

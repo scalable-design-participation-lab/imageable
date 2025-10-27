@@ -1,13 +1,15 @@
 # imageable/models/materials/preprocess.py
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence, Tuple, Union, overload
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import overload
 
 import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
+
 
 @dataclass(frozen=True)
 class PreprocessConfig:
@@ -25,13 +27,14 @@ class PreprocessConfig:
     to_float32 : bool
         If True, convert PIL/np inputs to float32 before tensor conversion.
     """
+
     tile_size: int = 640
-    mean: Tuple[float, float, float] = (0.485, 0.456, 0.406)
-    std: Tuple[float, float, float] = (0.229, 0.224, 0.225)
+    mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
+    std: tuple[float, float, float] = (0.229, 0.224, 0.225)
     to_float32: bool = False
 
 
-def _to_pil(img: Union[Image.Image, np.ndarray]) -> Image.Image:
+def _to_pil(img: Image.Image | np.ndarray) -> Image.Image:
     """
     Ensure input is a PIL.Image in RGB mode.
     Accepts: PIL.Image (any mode) or numpy array (H,W,3) uint8/float.
@@ -48,13 +51,12 @@ def _to_pil(img: Union[Image.Image, np.ndarray]) -> Image.Image:
         if img.dtype == np.uint8:
             pil = Image.fromarray(img, mode="RGB")
             return pil
-        elif np.issubdtype(img.dtype, np.floating):
+        if np.issubdtype(img.dtype, np.floating):
             # clamp to [0,1] then scale to [0,255]
             arr = np.clip(img, 0.0, 1.0)
             arr = (arr * 255.0 + 0.5).astype(np.uint8)
             return Image.fromarray(arr, mode="RGB")
-        else:
-            raise ValueError(f"Unsupported numpy dtype {img.dtype} (expected uint8 or float)")
+        raise ValueError(f"Unsupported numpy dtype {img.dtype} (expected uint8 or float)")
 
     raise TypeError(f"Unsupported image type {type(img)}; expected PIL.Image or numpy.ndarray")
 
@@ -68,32 +70,36 @@ def _ensure_tile(img: Image.Image, tile_size: int) -> Image.Image:
     return img
 
 
-def _build_transform(mean: Tuple[float, float, float], std: Tuple[float, float, float]) -> T.Compose:
+def _build_transform(mean: tuple[float, float, float], std: tuple[float, float, float]) -> T.Compose:
     """
     Torchvision transform: ToTensor -> Normalize (RGB).
     """
-    return T.Compose([
-        T.ToTensor(),                   # (H,W,3) uint8 -> (C,H,W) float32 in [0,1]
-        T.Normalize(mean=mean, std=std)
-    ])
+    return T.Compose(
+        [
+            T.ToTensor(),  # (H,W,3) uint8 -> (C,H,W) float32 in [0,1]
+            T.Normalize(mean=mean, std=std),
+        ]
+    )
+
 
 @overload
 def preprocess_image(
-    img: Union[Image.Image, np.ndarray],
+    img: Image.Image | np.ndarray,
     config: PreprocessConfig = ...,
-    device: Union[str, torch.device, None] = ...,
+    device: str | torch.device | None = ...,
 ) -> torch.Tensor: ...
 @overload
 def preprocess_image(
-    img: Sequence[Union[Image.Image, np.ndarray]],
+    img: Sequence[Image.Image | np.ndarray],
     config: PreprocessConfig = ...,
-    device: Union[str, torch.device, None] = ...,
+    device: str | torch.device | None = ...,
 ) -> torch.Tensor: ...
 
+
 def preprocess_image(
-    img: Union[Image.Image, np.ndarray, Sequence[Union[Image.Image, np.ndarray]]],
+    img: Image.Image | np.ndarray | Sequence[Image.Image | np.ndarray],
     config: PreprocessConfig = PreprocessConfig(),
-    device: Union[str, torch.device, None] = None,
+    device: str | torch.device | None = None,
 ) -> torch.Tensor:
     """
     Preprocess a single image OR a sequence of images for RMSNet.
@@ -120,17 +126,17 @@ def preprocess_image(
     """
     transform = _build_transform(config.mean, config.std)
 
-    def _one(x: Union[Image.Image, np.ndarray]) -> torch.Tensor:
+    def _one(x: Image.Image | np.ndarray) -> torch.Tensor:
         pil = _to_pil(x)
         pil = _ensure_tile(pil, config.tile_size)
         tensor = transform(pil)  # (C,H,W)
         return tensor
 
     if isinstance(img, (list, tuple)):
-        tensors: List[torch.Tensor] = [_one(x) for x in img]
+        tensors: list[torch.Tensor] = [_one(x) for x in img]
         batch = torch.stack(tensors, dim=0)  # (N,C,H,W)
     else:
-        batch = _one(img).unsqueeze(0)       # (1,C,H,W)
+        batch = _one(img).unsqueeze(0)  # (1,C,H,W)
 
     if device is not None:
         return batch.to(device)
@@ -139,8 +145,8 @@ def preprocess_image(
 
 def denormalize_tensor(
     tensor: torch.Tensor,
-    mean: Tuple[float, float, float] = (0.485, 0.456, 0.406),
-    std: Tuple[float, float, float] = (0.229, 0.224, 0.225),
+    mean: tuple[float, float, float] = (0.485, 0.456, 0.406),
+    std: tuple[float, float, float] = (0.229, 0.224, 0.225),
 ) -> torch.Tensor:
     """
     Inverse of Normalize for visualization/debug.

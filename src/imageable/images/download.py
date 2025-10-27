@@ -104,7 +104,7 @@ def fetch_image(
             latitude=latitude,
             longitude=longitude,
             pano_id=pano_id,
-            camera_parameters=camera_parameters
+            camera_parameters=camera_parameters,
         )
 
         # Now let's get the image
