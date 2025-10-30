@@ -344,6 +344,7 @@ class FootprintCalculator:
         return projected_centered_footprint, buffered_footprints
 
     @staticmethod
+<<<<<<< HEAD
     def get_footprint_indices_within_radius(
         footprints: list[Polygon],
         center_footprint: Polygon,
@@ -861,3 +862,7 @@ def find_neighboring_buildings(
     """
     _, neighbors = FootprintCalculator.get_footprints_within_radius(all_polygons, target_polygon, max_distance)
     return neighbors
+<<<<<<< HEAD
+=======
+
+>>>>>>> d6a39c2 (test: building + footprint)
