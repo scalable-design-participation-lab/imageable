@@ -152,7 +152,6 @@ def extract_building_properties(
         print("  ⊘ No image/mask provided")
     if verbose:
         print(f"\n✓ Complete! Total features: {len(properties.get_feature_vector())}")
-
     return properties
 
 
