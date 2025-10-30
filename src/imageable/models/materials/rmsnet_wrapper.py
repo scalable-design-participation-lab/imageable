@@ -12,9 +12,13 @@ from PIL import Image
 
 from imageable.models.base import BaseModelWrapper
 from imageable.models.materials.rmsnet import RMSNet
+from huggingface_hub import hf_hub_download,try_to_load_from_cache
 
 
 class RMSNetSegmentationWrapper(BaseModelWrapper):
+    MODEL_REPO = "urilp4669/Material_Segmentation_Models"
+    RMSN_WEIGHTS_FILENAME = "rmsnet_split2 (1).pth"
+    BACKBONE_FILENAME = "mit_b2.pth"
     def __init__(
         self,
         backbone: str = "mit_b2",
@@ -26,6 +30,7 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
         normalize_mean: tuple[float, float, float] = (0.485, 0.456, 0.406),
         normalize_std: tuple[float, float, float] = (0.229, 0.224, 0.225),
         model_path: str = None,
+        verbose: bool = False
     ) -> None:
         self.backbone = backbone
         self.num_classes = num_classes
@@ -45,6 +50,45 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
         )
         self._last_size: tuple[int, int] | None = None
         self.model_path = model_path
+        self.verbose = verbose
+
+        if(model_path is None or weights_path is None):
+            #Download weights from huggingface
+            weights_path, model_path = self._download_weights()
+            self.model_path = Path(model_path)
+            self.weights_path = Path(weights_path)
+
+
+    def _download_weights(self) -> str:
+        # Try to load from cache first
+        rms_cached = try_to_load_from_cache(
+            repo_id=self.MODEL_REPO,
+            filename=self.RMSN_WEIGHTS_FILENAME,
+        )
+        backbone_cached = try_to_load_from_cache(
+            repo_id=self.MODEL_REPO,
+            filename=self.BACKBONE_FILENAME,
+        )
+
+        if self.verbose:
+            print(f"RMSNet cache: {rms_cached}")
+            print(f"Backbone cache: {backbone_cached}")
+
+        # If either is missing, download it
+        rms_weights_path = rms_cached or hf_hub_download(
+            repo_id=self.MODEL_REPO,
+            filename=self.RMSN_WEIGHTS_FILENAME,
+        )
+        model_path = backbone_cached or hf_hub_download(
+            repo_id=self.MODEL_REPO,
+            filename=self.BACKBONE_FILENAME,
+        )
+
+        if self.verbose:
+            print(f"RMSNet weights available at: {rms_weights_path}")
+            print(f"Backbone model available at: {model_path}")
+
+        return rms_weights_path, model_path
 
     def load_model(self) -> None:
         if self.model is not None:

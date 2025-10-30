@@ -21,16 +21,15 @@ def get_best_k_silhouette(
     scores: Dict[int, float] = {}
     data = np.asarray(data, dtype=np.float64)
 
-    # basic sanity check so KMeans doesn't explode silently
+
     if np.isnan(data).any() or np.isinf(data).any():
         raise ValueError("Input data contains NaN or inf.")
-    
+
     for k in range(k_min, k_max + 1):
         kmeans = KMeans(n_clusters=k, n_init=1).fit(data)
         labels = kmeans.labels_
 
-        # if kmeans produced an empty cluster, skip this k
-        # (this avoids silhouette getting weird / div by zero downstream)
+
         _, counts = np.unique(labels, return_counts=True)
         if np.any(counts == 0):
             continue
@@ -91,7 +90,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self.kmeans_kwargs = {} if kmeans_kwargs is None else kmeans_kwargs
         self.distance_eps = distance_eps
 
-        # internal trained state
+
         self._kmeans: Optional[KMeans] = None
         self._cluster_centers: Optional[np.ndarray] = None
         self._cluster_models: List[Any] = []
@@ -116,7 +115,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         X = np.asarray(X)
         y = np.asarray(y)
 
-        # 1. cluster the feature space
+
         self._kmeans = KMeans(
             n_clusters=self.n_clusters,
             **self.kmeans_kwargs,
@@ -125,7 +124,6 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         labels = self._kmeans.labels_
         self._cluster_centers = self._kmeans.cluster_centers_
 
-        # 2. train one regressor per cluster
         self._cluster_models = []
         for k in range(self.n_clusters):
             mask = labels == k
@@ -159,11 +157,11 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         """
         if self._cluster_centers is None:
             raise RuntimeError("Model not loaded: no cluster centers.")
-        dists = pairwise_distances(X, self._cluster_centers)  # (n_samples, n_clusters)
+        dists = pairwise_distances(X, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
         w = np.exp(-dists)
         w = w / np.sum(w, axis=1, keepdims=True)
-        return w  # (n_samples, n_clusters)
+        return w
 
     def predict(self, inputs: Any) -> np.ndarray:
         """
@@ -183,24 +181,22 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         if not self.is_loaded():
             raise RuntimeError("Model not loaded. Call load_model(X, y) first.")
 
-        # preprocess hook (can override in subclass)
+
         X = self.preprocess(inputs)
         X = np.asarray(X)
 
-        weights = self._compute_weights(X)  # (n_samples, n_clusters)
+        weights = self._compute_weights(X)
 
-        # get each cluster model's prediction on all X
         preds_per_cluster = []
         for mdl in self._cluster_models:
-            preds_per_cluster.append(mdl.predict(X))  # (n_samples,)
-        preds_matrix = np.stack(preds_per_cluster, axis=1)  # (n_samples, n_clusters)
+            preds_per_cluster.append(mdl.predict(X))
+        preds_matrix = np.stack(preds_per_cluster, axis=1)
 
-        blended = np.sum(weights * preds_matrix, axis=1)  # (n_samples,)
+        blended = np.sum(weights * preds_matrix, axis=1)
 
-        # postprocess hook (can override in subclass)
+
         return self.postprocess(blended)
 
-    # optional utilities if you want downstream inspection/debug
     @property
     def cluster_centers_(self) -> np.ndarray:
         if self._cluster_centers is None:
@@ -258,8 +254,6 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         self.attrs_name = attrs_name
         self.scaler = scaler if scaler is not None else StandardScaler()
         self.distance_eps = distance_eps
-
-        # trained state
         self._skater_labels: Optional[np.ndarray] = None
         self._cluster_models: List[Any] = []
         self._cluster_centers: Optional[np.ndarray] = None
@@ -289,24 +283,11 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         X = np.asarray(X)
         y = np.asarray(y)
 
-        # 0. spatial contiguity
         w = Queen.from_dataframe(gdf)
 
-        # 1. scale attrs for SKATER. We must fit/transform on attrs_name here,
-        #    BUT we do NOT overwrite the externally provided scaler for inference.
-        #    We want inference to keep using the scaler passed at __init__.
-        #    So:
-        #       - temp_scaler = clone of self.scaler if it's unfitted
-        #       - or if self.scaler is already fitted, we use transform only
-        #
-        # Practical shortcut:
-        #    We'll just create a copy and transform with self.scaler.
-        #    We assume you've already fit `scaler` BEFORE calling load_model
-        #    (which you did).
         gdf_scaled = gdf.copy()
         gdf_scaled[self.attrs_name] = self.scaler.transform(gdf[self.attrs_name])
 
-        # 2. run SKATER
         skater_model = Skater(
             gdf=gdf_scaled,
             w=w,
@@ -314,62 +295,45 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
             n_clusters=self.n_clusters,
         )
 
-        # your version needs solve()
         if hasattr(skater_model, "solve"):
             skater_model.solve()
 
-        # 3. grab labels_
         if not hasattr(skater_model, "labels_"):
             raise RuntimeError("SKATER returned no labels_. Unexpected version.")
         labels = np.asarray(skater_model.labels_)
-        # shape should be (n_samples,)
 
         self._skater_labels = labels
 
-        # track unique cluster ids returned by SKATER
+
         unique_clusters = np.unique(labels)
 
-        # 4. fit a regressor per cluster id actually present
-        # we'll store models in cluster_id order (sorted)
+
         cluster_models: List[Any] = []
         cluster_centers_list: List[np.ndarray] = []
 
-        # We need the scaled features in attrs_name order to compute centers.
-        # X that you passed in is already scaled, but we can't assume `X` column
-        # order == `attrs_name` order unless you built X that way.
-        # Safer: regenerate scaled feature matrix directly from gdf + scaler.
+
         X_scaled_full = self.scaler.transform(gdf[self.attrs_name].to_numpy())
 
         for k in unique_clusters:
             mask = labels == k
-            # guard: if a cluster has only 1 point, many regressors can still fit,
-            # but some (like GradientBoostingRegressor) cannot learn properly.
-            # You are using GradientBoostingRegressor which *can* technically fit,
-            # but depth-based learners can overfit trivially. We'll just still fit.
+
             model = self.model_factory(int(k))
             model.fit(X[mask], y[mask])
             cluster_models.append(model)
 
-            # compute center of this cluster in scaled feature space
+
             center_k = X_scaled_full[mask].mean(axis=0)
             cluster_centers_list.append(center_k)
 
-        # store in the same order as unique_clusters
+
         self._cluster_models = cluster_models
         self._cluster_centers = np.vstack(cluster_centers_list)
 
-        # BUT: unique_clusters may not be [0,1,2,...]. Could be [0, 1, 2, ..., 147].
-        # We need to know how to line up cluster ids with rows in _cluster_centers.
-        # Build a remapping dict and apply it to self._skater_labels so that
-        # cluster IDs become dense [0..n_clusters_found-1].
+
         remap = {orig_id: new_id for new_id, orig_id in enumerate(unique_clusters)}
 
         dense_labels = np.array([remap[cid] for cid in labels], dtype=int)
-        self._skater_labels = dense_labels  # overwrite with dense form
-
-        # reorder models and centers according to dense order:
-        # but we already appended in sorted(unique_clusters), which matches remap ordering,
-        # so models and centers are already aligned with dense ids 0..len-1.
+        self._skater_labels = dense_labels
 
         self._is_loaded = True
 
@@ -413,12 +377,11 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         X = self.preprocess(inputs)
         X = np.asarray(X)
 
-        weights = self._compute_weights(X)  # (n_samples, n_clusters_found)
+        weights = self._compute_weights(X)
 
-        # run each expert on all rows
         preds_per_cluster = []
         for mdl in self._cluster_models:
-            preds_per_cluster.append(mdl.predict(X))  # (n_samples,)
+            preds_per_cluster.append(mdl.predict(X))
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)
