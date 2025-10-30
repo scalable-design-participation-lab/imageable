@@ -8,6 +8,7 @@ from PIL import Image
 from imageable.images.camera.camera_parameters import CameraParameters
 from imageable.images.download import fetch_image
 from imageable.images.image import ImageMetadata
+from imageable.images.camera.camera_parameters import CameraParameters
 
 
 @patch("imageable.images.download.requests.get")
