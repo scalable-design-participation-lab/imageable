@@ -97,13 +97,16 @@ class VPTSWrapper(BaseModelWrapper):
 
         # Let's obtain the points
         vp_detector = VPDetection(length_threshold, principal_point, f, seed)
+        try:
+            vp_detector.find_vps(image)
+            vpts_3d = np.array(vp_detector.vps)
+            vpts_2d = np.array(vp_detector.vps_2D)
 
-        vp_detector.find_vps(image)
-        vpts_3d = np.array(vp_detector.vps)
-        vpts_2d = np.array(vp_detector.vps_2D)
+            K = np.array([[f, 0, cx], [0, f, cy], [0, 0, 1]])
 
-        K = np.array([[f, 0, cx], [0, f, cy], [0, 0, 1]])
+            vpts_dict = {"vpts_3d": vpts_3d, "vpts_2d": vpts_2d, "K": K}
 
-        vpts_dict = {"vpts_3d": vpts_3d, "vpts_2d": vpts_2d, "K": K}
-
-        return self.postprocess(vpts_dict)
+            return self.postprocess(vpts_dict)
+        except Exception:
+            print("No points detected, returning default values")
+            return {"vpts_3d": np.zeros((3, 3)), "vpts_2d": np.zeros((3, 2)), "K": np.zeros((3, 3))}

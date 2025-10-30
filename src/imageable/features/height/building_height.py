@@ -237,6 +237,8 @@ def building_height_from_single_view(
         use_pitch_only=height_estimation_params.use_pitch_only,
         use_detected_vpt_only=height_estimation_params.use_detected_vpt_only,
     )
+
+    #Add correction method.
     if results is None:
         return None
     return mean_no_outliers(collect_heights(results))

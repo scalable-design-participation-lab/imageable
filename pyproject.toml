@@ -26,6 +26,8 @@ dependencies = [
     "cmcrameri>=1.9",
     "scikit-learn>=1.7.2",
     "timm>=1.0.21",
+    "libpysal>=4.13.0",
+    "spopt>=0.7.0",
 ]
 
 [project.scripts]

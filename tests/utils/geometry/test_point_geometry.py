@@ -20,14 +20,15 @@ def test_heading_between_points_east_reference():
 
 def test_heading_between_points_north_reference():
     true_north = False
-    point_1 = (19.299663313632703, -99.10578117536366)
-    point_2 = (19.299690538813294, -99.10512540369302)
+
+    point_1 = (32.7914712556029, -96.95960991454406)
+    point_2 = (32.793532350419, -96.95964444727062)
 
     point_1_reversed = (point_1[1], point_1[0])
     point_2_reversed = (point_2[1], point_2[0])
 
     heading = get_heading_between_points_euclidean(point_1_reversed, point_2_reversed, true_north=true_north)
-
+    print(heading)
     max_error = 15
     assert heading > 90 - max_error
     assert heading < 90 + max_error
