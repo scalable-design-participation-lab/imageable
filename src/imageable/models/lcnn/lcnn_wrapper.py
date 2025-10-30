@@ -7,7 +7,7 @@ import skimage.io
 import skimage.transform
 import torch
 import yaml
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
 
 from imageable.models.base import BaseModelWrapper
 from imageable.models.lcnn import models as lcnn_models
@@ -128,15 +128,30 @@ class LCNNWrapper(BaseModelWrapper):
 
     def load_model(self) -> None:
         """
-        Load the L-CNN model from checkpoint.
+        Load the L-CNN model from checkpoint, checking cache first.
         """
         if not self.checkpoint_path:
-            model_path = hf_hub_download(repo_id=self.MODEL_REPO, filename=self.DOWNLOAD_FILENAME)
-            self.checkpoint_path = model_path
-            if not Path(model_path).exists():
-                raise FileNotFoundError(f"Checkpoint file not found at {model_path}")
+            # Try to locate checkpoint in cache
+            cached_path = try_to_load_from_cache(
+                repo_id=self.MODEL_REPO,
+                filename=self.DOWNLOAD_FILENAME,
+            )
+
+            if cached_path and Path(cached_path).exists():
+                self.checkpoint_path = cached_path
+                print(f"Checkpoint found in cache: {cached_path}")
             else:
-                print(f"Checkpoint downloaded at {model_path}")
+                # Download if not cached
+                model_path = hf_hub_download(
+                    repo_id=self.MODEL_REPO,
+                    filename=self.DOWNLOAD_FILENAME,
+                )
+                self.checkpoint_path = model_path
+                print(f"Checkpoint downloaded at: {model_path}")
+
+        # Final safety check
+        if not Path(self.checkpoint_path).exists():
+            raise FileNotFoundError(f"Checkpoint file not found at {self.checkpoint_path}")
 
 
         # Update global configuration

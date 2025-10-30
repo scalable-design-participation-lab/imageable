@@ -22,6 +22,8 @@ from imageable.utils.geometry.ray_geometry import get_closest_intersected_line
 from imageable.utils.geometry.surface_geometry import AreaConversionFactors
 from imageable.utils.masks.mask_operations import segment_horizontally_based_on_pixel_density
 
+MODEL_REPO = "urilp4669/Material_Segmentation_Models"
+RMSN_WEIGHTS_FILENAME = "rmsnet_split2 (1).pth"
 
 def _bearing_to_cartesian_deg(bearing_deg: float) -> float:
     """
@@ -107,10 +109,6 @@ class BuildingMaterialProperties:
     pixel_density_threshold_for_cutting_building: float = 0.15
 
 
-EXPECTED_INTERSECTION_POINTS = 2
-MAX_RAY_LENGTH_METERS = 500.0
-
-
 # ruff: noqa: PLR0911, PLR0912, PLR0915
 def get_building_materials_segmentation(properties: BuildingMaterialProperties) -> dict[int, float] | None:
     """
@@ -128,9 +126,6 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         A dictionary with material class percentages or areas
         depending on the specified parameter values.
     """
-    if properties.rmsnetweights_path is None or properties.backbone_model_path is None:
-        logging.warning("RMSNet weights path or backbone model path is None. Cannot perform material segmentation.")
-        return None
     # Get the percentages
     wrapper = RMSNetSegmentationWrapper(
         backbone=properties.backbone,
@@ -140,6 +135,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         weights_path=Path(properties.rmsnetweights_path) if properties.rmsnetweights_path is not None else None,
         tile_size=properties.tile_size,
         model_path=properties.backbone_model_path,
+        verbose=properties.verbose
     )
     logits = wrapper.predict(properties.img)
     out = wrapper.postprocess(logits)
