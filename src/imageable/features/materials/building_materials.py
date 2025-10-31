@@ -249,7 +249,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
     if properties.verbose:
         palette = get_material_palette()
         labels = get_material_labels()
-
+        colored = colorize_mask(mask, palette)
         base = Image.fromarray(properties.img).resize((colored.shape[1], colored.shape[0]), Image.Resampling.BILINEAR)
         if properties.restrict_calculations_to_mask and masked_img is not None:
             base = Image.fromarray(masked_img).resize((colored.shape[1], colored.shape[0]), Image.Resampling.BILINEAR)
