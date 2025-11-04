@@ -95,7 +95,7 @@ class HeightEstimationParameters:
     overwrite_images: bool = True
     confidence_detection: float = 0.1
     max_number_of_images: int = 5
-    polygon_buffer_constant: float = 1.5e5
+    polygon_buffer_constant: float = 20
     min_floor_ratio: float = 0.00001
     min_sky_ratio: float = 0.1
     # Building Segmentation parameters
