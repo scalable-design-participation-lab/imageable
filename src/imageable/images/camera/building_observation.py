@@ -11,6 +11,8 @@ from imageable.utils.geometry.polygons import (
     get_polygon_outward_vectors,
 )
 from imageable.utils.geometry.ray_geometry import get_closest_ray_intersection
+from imageable.models.distance_to_streets_wrapper import DistanceRegressorWrapper
+from imageable.properties.extract import extract_building_properties
 
 
 class ObservationPointEstimator:
@@ -94,7 +96,7 @@ class ObservationPointEstimator:
 
     def _get_surrounding_street_network(
         self,
-        buffer_constant: float = 2.5e5,
+        buffer_constant: float = 3,
     ) -> gpd.GeoDataFrame:
         """
         Get the surrounding street network of the polygon using a buffer.
@@ -111,10 +113,67 @@ class ObservationPointEstimator:
             A GeoDataFrame containing the street network within the buffer.
         """
         # We will estimate a buffer using the polygon area
-        area = self.polygon.area
-        buffer_distance = area * buffer_constant
+        id = 0
+        properties = extract_building_properties(
+            id,
+            self.polygon
+        )
+        feature_vector = [
+            properties.projected_area,
+            properties.shape_length,
+            properties.n_vertices,
+            properties.complexity,
+            properties.unprojected_area,
+            properties.vertices_per_area,
+            properties.latitude_difference,
+            properties.longitude_difference
+        ]
+
+        distance_wrapper = DistanceRegressorWrapper(
+            input_dim=8,
+            hidden_sizes=(128, 128),
+            device=None,
+            model_path=None,
+            target_mode="log1p"
+        )
+
+        X_input = np.asarray(feature_vector, dtype=np.float32).reshape(1, -1)
+        pred_meters = float(distance_wrapper.predict(X_input)[0])
+        buffer = buffer_constant*pred_meters
+
+        point = self.polygon.centroid
+        try:
+            g = ox.graph_from_point(
+                (point.y, point.x), dist=buffer, network_type="all", simplify=True
+            )
+            # let's get the GDF
+            return ox.graph_to_gdfs(g, nodes=False, edges=True)
+
+        except Exception:
+            logging.exception("Error obtaining street network")
+            return None
+
+
+    def _get_surrounding_street_network_with_distance(
+            self,
+            buffer_distance: float  = 0.055
+    ) -> gpd.GeoDataFrame:
+        """
+        Get the surrounding street network of the polygon using a fixed buffer distance.
+
+        Parameters
+        ----------
+        buffer_distance
+            A fixed distance to create a buffer around the building polygon.
+
+        Returns
+        -------
+        gdf_surrounding_network
+            A GeoDataFrame containing the street network within the buffer.
+        """
         # Get the surrounding street
         buffered_polygon = self.polygon.buffer(buffer_distance)
+
         if not buffered_polygon.is_valid:
             buffered_polygon = buffered_polygon.buffer(0)
         try:
@@ -125,3 +184,5 @@ class ObservationPointEstimator:
         except Exception:
             logging.exception("Error obtaining street network")
             return None
+
+
