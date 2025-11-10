@@ -117,8 +117,8 @@ class HeightEstimationParameters:
     building_label: list[int] = field(default_factory=lambda: [1])
     ground_label: list[int] = field(default_factory=lambda: [6, 11])
     line_classification_angle_threshold: float = 10.0
-    line_score_threshold: float = 0.94
-    edge_threshold: str = "5,5"
+    line_score_threshold: float = 0.5
+    edge_threshold: str = "2,2"
     max_dbscan_distance: float = 60.0
     verbose: bool = False
     use_pitch_only: bool = False

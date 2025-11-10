@@ -17,7 +17,7 @@ model:
   # backbone multi-task parameters
   head_size: [[2], [1], [2]]
   loss_weight:
-    jmap: 8.0
+    jmap: 10.0
     lmap: 0.5
     joff: 0.25
     lpos: 1
@@ -35,6 +35,7 @@ model:
   n_stc_negl: 40
 
   ## dynamic sampler
+  junction_matching_threshold: 1
   n_dyn_junc: 300
   n_dyn_posl: 300
   n_dyn_negl: 80
@@ -58,7 +59,8 @@ model:
   use_conv: 0
 
   # junction threashold for evaluation (See #5)
-  eval_junc_thres: 0.008
+  eval_junc_thres: 0.005
+  line_confidence_threshold: 0.35
 
 optim:
   name: Adam

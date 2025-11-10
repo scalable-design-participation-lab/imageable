@@ -89,7 +89,8 @@ class LineVectorizer(nn.Module):
         if input_dict["mode"] != "training":
             p = torch.cat(ps)
             s = torch.sigmoid(x)
-            b = s > 0.5
+            line_confidence_threshold = getattr(M, 'line_confidence_threshold', 0.5)
+            b = s > line_confidence_threshold
             lines = []
             score = []
             for i in range(n_batch):
@@ -173,7 +174,8 @@ class LineVectorizer(nn.Module):
             # match: [N_TYPE, K]
             for t in range(n_type):
                 match[t, jtyp[match[t]] != t] = N
-            match[cost > 1.5 * 1.5] = N
+            threshold = getattr(M, "junction_matching_threshold", 1.5)
+            match[cost > threshold ** 2] = N
             match = match.flatten()
 
             _ = torch.arange(n_type * K, device=device)
