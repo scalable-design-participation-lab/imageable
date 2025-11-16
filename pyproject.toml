@@ -28,6 +28,7 @@ dependencies = [
     "timm>=1.0.21",
     "libpysal>=4.13.0",
     "spopt>=0.7.0",
+    "pydeck>=0.9.1",
 ]
 
 [project.scripts]

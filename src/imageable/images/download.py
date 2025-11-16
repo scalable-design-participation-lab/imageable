@@ -66,7 +66,27 @@ def fetch_image(
     """
     # Check if the image already exists and should not be overwritten
     if save_path is not None and not overwrite_image and Path(save_path).exists():
-        return None, None
+        try:
+            print("Recycling image")
+            img = np.array(Image.open(save_path))
+            metadata_path = Path(save_path).parent / "metadata.json"
+            with metadata_path.open("r") as f:
+                metadata_dict = json.load(f)
+            img_metadata = ImageMetadata(
+                status=metadata_dict.get("status", False),
+                date=metadata_dict.get("date", NA_FIELD),
+                img_size=tuple(metadata_dict.get("img_size", (None, None))),
+                source=metadata_dict.get("source", NA_FIELD),
+                latitude=metadata_dict.get("latitude", np.nan),
+                longitude=metadata_dict.get("longitude", np.nan),
+                pano_id=metadata_dict.get("pano_id", NA_FIELD),
+                camera_parameters=CameraParameters(**metadata_dict.get("camera_parameters", {})),
+            )
+            return img, img_metadata
+        except Exception:
+            print("Failed to load existing image or metadata. Fetching new image.")
+            # just continue; do NOT return
+            pass
     # Base URL for the Google Street View API
     base_url = "https://maps.googleapis.com/maps/api/streetview"
 

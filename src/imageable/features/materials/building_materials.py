@@ -25,6 +25,9 @@ from imageable.utils.masks.mask_operations import segment_horizontally_based_on_
 MODEL_REPO = "urilp4669/Material_Segmentation_Models"
 RMSN_WEIGHTS_FILENAME = "rmsnet_split2 (1).pth"
 
+EXPECTED_INTERSECTION_POINTS = 2
+MAX_RAY_LENGTH_METERS = 5000.0
+
 def _bearing_to_cartesian_deg(bearing_deg: float) -> float:
     """
     Convert compass bearing (0° = North, 90° = East) to Cartesian angle.
@@ -340,25 +343,31 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
 
     if physical_units and properties.units in ["m2", "ft2", "mi2"]:
         if properties.units == "m2":
-            return percentages
+            labels = get_material_labels()
+            return {labels[k]: v for k, v in percentages.items()}
         if properties.units == "ft2":
             for k in percentages:
                 percentages[k] = percentages[k] * AreaConversionFactors.SQM_TO_SQFT.value
-            return percentages
+            labels = get_material_labels()
+            return {labels[k]: v for k, v in percentages.items()}
         if properties.units == "mi2":
             for k in percentages:
                 percentages[k] = percentages[k] * AreaConversionFactors.SQM_TO_SQMI.value
-            return percentages
+            labels = get_material_labels()
+            return {labels[k]: v for k, v in percentages.items()}
 
     elif physical_units:
         logging.warning("Physical units not identified. Defaulting to square meters.")
-        return percentages
+        labels = get_material_labels()
+        return {labels[k]: v for k, v in percentages.items()}
 
     elif properties.units == "%":
-        return percentages
+        labels = get_material_labels()
+        return {labels[k]: v for k, v in percentages.items()}
     elif properties.units == "px":
         for k in list(percentages.keys()):
             percentages[k] = int(percentages[k] * total_pixels)
-        return percentages
-
-    return percentages
+        labels = get_material_labels()
+        return {labels[k]: v for k, v in percentages.items()}
+    labels = get_material_labels()
+    return {labels[k]: v for k, v in percentages.items()}

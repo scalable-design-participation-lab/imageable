@@ -48,18 +48,10 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
     """
     Wrapper for a cluster-weighted ensemble of regressors.
 
-    The idea:
     - Run KMeans to partition feature space into n_clusters.
     - Train one regressor per cluster on that cluster's points.
     - At inference, each new sample is predicted by all cluster models,
       and we take a distance-based soft weighting of those per-cluster predictions.
-
-    This wrapper follows the BaseModelWrapper interface:
-    - __init__: configure
-    - load_model: "fit"/train on provided (X, y)
-    - predict: inference on new X
-    - is_loaded: check training status
-    - preprocess/postprocess hooks exist and can be overridden
     """
 
     def __init__(
@@ -68,86 +60,65 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         model_factory: Callable[[int], Any],
         kmeans_kwargs: Optional[Dict[str, Any]] = None,
         distance_eps: float = 1e-12,
+        feature_indices_used_for_clustering: Optional[List[int]] = None,
     ) -> None:
-        """
-        Initialize the wrapper with hyperparameters, but do not train.
-
-        Parameters
-        ----------
-        n_clusters : int
-            Number of clusters for KMeans.
-        model_factory : Callable[[], Any]
-            A callable that returns a fresh regressor with .fit(X, y) and .predict(X).
-            This is called once per cluster.
-        kmeans_kwargs : dict, optional
-            Extra kwargs passed to sklearn.cluster.KMeans.
-            e.g. {"n_init": 10, "random_state": 0}
-        distance_eps : float
-            Small positive constant to avoid zero distance.
-        """
         self.n_clusters = n_clusters
         self.model_factory = model_factory
         self.kmeans_kwargs = {} if kmeans_kwargs is None else kmeans_kwargs
         self.distance_eps = distance_eps
 
-
         self._kmeans: Optional[KMeans] = None
         self._cluster_centers: Optional[np.ndarray] = None
         self._cluster_models: List[Any] = []
-
         self._is_loaded: bool = False
 
-    def load_model(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-    ) -> None:
+        # indices of features used only for clustering / distances
+        self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
+
+    def load_model(self, X: np.ndarray, y: np.ndarray) -> None:
         """
-        "Load" the model. In this case, this means: fit the KMeans and the per-cluster regressors.
+        Fit KMeans + per-cluster regressors.
 
         Parameters
         ----------
-        X : np.ndarray
-            Training features, shape (n_samples, n_features)
-        y : np.ndarray
-            Training targets, shape (n_samples,)
+        X : (n_samples, n_features)
+        y : (n_samples,)
         """
         X = np.asarray(X)
         y = np.asarray(y)
 
+        X_complete = X.copy()
 
+        # features used for clustering (maybe a subset)
+        if self.feature_indices_used_for_clustering is not None:
+            X_cluster = X[:, self.feature_indices_used_for_clustering]
+        else:
+            X_cluster = X
+
+        # KMeans on cluster features
         self._kmeans = KMeans(
             n_clusters=self.n_clusters,
             **self.kmeans_kwargs,
-        ).fit(X)
+        ).fit(X_cluster)
 
         labels = self._kmeans.labels_
         self._cluster_centers = self._kmeans.cluster_centers_
 
+        # one expert per cluster, trained on full X
         self._cluster_models = []
         for k in range(self.n_clusters):
             mask = labels == k
             model = self.model_factory(k)
-            model.fit(X[mask], y[mask])
+            model.fit(X_complete[mask], y[mask])
             self._cluster_models.append(model)
 
         self._is_loaded = True
 
-    def fit(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-    ) -> "ClusterWeightedEnsembleWrapper":
-        """
-        Convenience alias so you can use this like an sklearn estimator if you want.
-        """
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "ClusterWeightedEnsembleWrapper":
         self.load_model(X, y)
         return self
 
     def is_loaded(self) -> bool:
-        """
-        Returns True if the ensemble has been trained.
-        """
         return self._is_loaded
 
     def _compute_weights(self, X: np.ndarray) -> np.ndarray:
@@ -157,6 +128,11 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         """
         if self._cluster_centers is None:
             raise RuntimeError("Model not loaded: no cluster centers.")
+
+        X = np.asarray(X)
+        if self.feature_indices_used_for_clustering is not None:
+            X = X[:, self.feature_indices_used_for_clustering]
+
         dists = pairwise_distances(X, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
         w = np.exp(-dists)
@@ -164,37 +140,18 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         return w
 
     def predict(self, inputs: Any) -> np.ndarray:
-        """
-        Predict target values for new samples.
-
-        Parameters
-        ----------
-        inputs : Any
-            Input feature matrix of shape (n_samples, n_features),
-            or any object accepted by preprocess().
-
-        Returns
-        -------
-        np.ndarray
-            Predictions of shape (n_samples,).
-        """
         if not self.is_loaded():
             raise RuntimeError("Model not loaded. Call load_model(X, y) first.")
-
 
         X = self.preprocess(inputs)
         X = np.asarray(X)
 
         weights = self._compute_weights(X)
 
-        preds_per_cluster = []
-        for mdl in self._cluster_models:
-            preds_per_cluster.append(mdl.predict(X))
+        preds_per_cluster = [mdl.predict(X) for mdl in self._cluster_models]
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)
-
-
         return self.postprocess(blended)
 
     @property
@@ -229,7 +186,6 @@ class BaseModelWrapper(BaseEstimator):
     def postprocess(self, y_pred: np.ndarray) -> np.ndarray:
         return y_pred
 
-
 class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
     """
     Cluster-weighted ensemble of regressors using SKATER (spatially constrained clustering).
@@ -237,7 +193,7 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
     - We run SKATER on gdf[attrs_name] with spatial contiguity from Queen.
     - We train one expert model per SKATER label.
     - At predict time we blend all experts' predictions using exp(-distance)
-      to each cluster's mean (in scaled feature space).
+      to each cluster's mean (in (optionally scaled) feature space).
     """
 
     def __init__(
@@ -247,18 +203,22 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         attrs_name: List[str],
         scaler: Optional[StandardScaler] = None,
         distance_eps: float = 1e-12,
+        feature_indices_used_for_clustering: Optional[List[int]] = None,
     ) -> None:
 
         self.n_clusters = n_clusters
         self.model_factory = model_factory
         self.attrs_name = attrs_name
-        self.scaler = scaler if scaler is not None else StandardScaler()
+        self.scaler = scaler              # if None → no scaling, if not None → fit inside load_model
         self.distance_eps = distance_eps
+
         self._skater_labels: Optional[np.ndarray] = None
         self._cluster_models: List[Any] = []
         self._cluster_centers: Optional[np.ndarray] = None
-
         self._is_loaded: bool = False
+
+        # indices (in attrs_name order) used for clustering / distances
+        self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
 
     def load_model(
         self,
@@ -268,25 +228,33 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
     ) -> None:
         """
         Fit the spatial mixture-of-experts:
-        1. SKATER to get spatially constrained clusters.
-        2. Train one regressor per cluster.
-        3. Compute per-cluster mean feature vector in scaled feature space.
+        1. Run SKATER on (optionally scaled) gdf[attrs_name] to get spatial clusters.
+        2. Train one regressor per cluster on X.
+        3. Compute per-cluster mean feature vector in the same feature space used for distances.
 
         Assumptions:
         - gdf, X, y are row-aligned.
-        - X is ALREADY scaled with the same scaler you passed in __init__.
-        - gdf[self.attrs_name] are the SAME features (unscaled) in the SAME order.
+        - X is **not** scaled yet; if scaler is provided, it will be fit here.
+        - gdf[self.attrs_name] are the same features used to build X (possibly a subset).
         """
-        from libpysal.weights import Queen
-        from spopt.region import Skater
-
         X = np.asarray(X)
         y = np.asarray(y)
 
+        # ----- 1. Scaling (optional) -----
+        if self.scaler is not None:
+            # fit scaler on gdf[attrs_name]
+            self.scaler.fit(gdf[self.attrs_name])
+            feats_scaled = self.scaler.transform(gdf[self.attrs_name].to_numpy())
+            X_scaled = self.scaler.transform(X)
+        else:
+            feats_scaled = gdf[self.attrs_name].to_numpy()
+            X_scaled = X
+
+        # ----- 2. Contiguity + SKATER -----
         w = Queen.from_dataframe(gdf)
 
         gdf_scaled = gdf.copy()
-        gdf_scaled[self.attrs_name] = self.scaler.transform(gdf[self.attrs_name])
+        gdf_scaled[self.attrs_name] = feats_scaled
 
         skater_model = Skater(
             gdf=gdf_scaled,
@@ -294,7 +262,6 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
             attrs_name=self.attrs_name,
             n_clusters=self.n_clusters,
         )
-
         if hasattr(skater_model, "solve"):
             skater_model.solve()
 
@@ -302,36 +269,33 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
             raise RuntimeError("SKATER returned no labels_. Unexpected version.")
         labels = np.asarray(skater_model.labels_)
 
-        self._skater_labels = labels
-
-
         unique_clusters = np.unique(labels)
 
+        # ----- 3. Prepare feature space for centers / distances -----
+        if self.feature_indices_used_for_clustering is not None:
+            centers_space = feats_scaled[:, self.feature_indices_used_for_clustering]
+        else:
+            centers_space = feats_scaled
 
         cluster_models: List[Any] = []
         cluster_centers_list: List[np.ndarray] = []
 
+        # ----- 4. Train one model per cluster, compute cluster centers -----
+        for cid in unique_clusters:
+            mask = labels == cid
 
-        X_scaled_full = self.scaler.transform(gdf[self.attrs_name].to_numpy())
-
-        for k in unique_clusters:
-            mask = labels == k
-
-            model = self.model_factory(int(k))
-            model.fit(X[mask], y[mask])
+            model = self.model_factory(int(cid))
+            model.fit(X_scaled[mask], y[mask])
             cluster_models.append(model)
 
-
-            center_k = X_scaled_full[mask].mean(axis=0)
+            center_k = centers_space[mask].mean(axis=0)
             cluster_centers_list.append(center_k)
-
 
         self._cluster_models = cluster_models
         self._cluster_centers = np.vstack(cluster_centers_list)
 
-
+        # ----- 5. Remap labels to dense 0..n_clusters-1 -----
         remap = {orig_id: new_id for new_id, orig_id in enumerate(unique_clusters)}
-
         dense_labels = np.array([remap[cid] for cid in labels], dtype=int)
         self._skater_labels = dense_labels
 
@@ -349,18 +313,30 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
     def is_loaded(self) -> bool:
         return self._is_loaded
 
-    def _compute_weights(self, X: np.ndarray) -> np.ndarray:
+    def _compute_weights(self, X_input: np.ndarray) -> np.ndarray:
         """
-        X must already be scaled with the same scaler and in the same column
-        order as self.attrs_name.
+        Compute soft assignment weights for each sample to each cluster,
+        based on distance to cluster centers.
 
-        We weight each expert by exp(-distance to that expert's cluster center).
+        X_input is in the same space as training X (unscaled); scaling is handled here.
         """
         if self._cluster_centers is None:
             raise RuntimeError("Model not loaded: no cluster centers.")
 
-        X_scaled = np.asarray(X)
-        dists = pairwise_distances(X_scaled, self._cluster_centers)
+        X_input = np.asarray(X_input)
+
+        # scale if needed, same way as in load_model
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X_input)
+        else:
+            X_scaled = X_input
+
+        if self.feature_indices_used_for_clustering is not None:
+            X_for_weights = X_scaled[:, self.feature_indices_used_for_clustering]
+        else:
+            X_for_weights = X_scaled
+
+        dists = pairwise_distances(X_for_weights, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
 
         w = np.exp(-dists)
@@ -369,19 +345,25 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
 
     def predict(self, inputs: Any) -> np.ndarray:
         """
-        inputs must already be scaled with the same scaler and same feature order.
+        inputs: same feature space as training X (unscaled).
+        Scaling + subspace selection are handled internally.
         """
         if not self.is_loaded():
             raise RuntimeError("Model not loaded. Call load_model(...) first.")
 
-        X = self.preprocess(inputs)
-        X = np.asarray(X)
+        X_input = self.preprocess(inputs)
+        X_input = np.asarray(X_input)
 
-        weights = self._compute_weights(X)
+        # scale for experts
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X_input)
+        else:
+            X_scaled = X_input
 
-        preds_per_cluster = []
-        for mdl in self._cluster_models:
-            preds_per_cluster.append(mdl.predict(X))
+        # weights in the same space centers were defined
+        weights = self._compute_weights(X_input)
+
+        preds_per_cluster = [mdl.predict(X_scaled) for mdl in self._cluster_models]
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)

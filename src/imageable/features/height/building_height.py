@@ -11,9 +11,13 @@ from imageable.models.height_estimation.height_calculator import (
     HeightCalculator,
     HeightEstimationInput,
 )
+from imageable.images.camera.camera_parameters import CameraParameters as GSVCameraParameters
+
 from imageable.models.huggingface.segformer_segmentation import SegformerSegmentationWrapper
 from imageable.models.lcnn.lcnn_wrapper import LCNNWrapper
 from imageable.models.vpts.vpts_wrapper import VPTSWrapper
+from PIL import Image
+import json
 
 
 @dataclass
@@ -147,20 +151,55 @@ def building_height_from_single_view(
     height
         Estimated height of the building in meters.
     """
-    # Image retrieval and camera parameter refinement
-    camera_parameters_refiner = CameraParametersRefiner(height_estimation_params.building_polygon)
-    camera_parameters_refiner.MIN_FLOOR_RATIO = height_estimation_params.min_floor_ratio
-    camera_parameters_refiner.MIN_SKY_RATIO = height_estimation_params.min_sky_ratio
 
-    camera_params, _success, image = camera_parameters_refiner.adjust_parameters(
-        height_estimation_params.gsv_api_key,
-        pictures_directory=height_estimation_params.pictures_directory,
-        save_reel=height_estimation_params.save_reel,
-        overwrite_images=height_estimation_params.overwrite_images,
-        confidence_detection=height_estimation_params.confidence_detection,
-        max_number_of_images=height_estimation_params.max_number_of_images,
-        polygon_buffer_constant=height_estimation_params.polygon_buffer_constant,
-    )
+    pictures_directory = Path(height_estimation_params.pictures_directory)
+    cached_image_path = pictures_directory / "image.jpg"
+    cached_metadata_path = pictures_directory / "metadata.json"
+
+    used_cache = False
+    if (
+        not height_estimation_params.overwrite_images
+        and cached_image_path.exists()
+        and cached_metadata_path.exists()
+    ):
+        try:
+            image = np.array(Image.open(cached_image_path))
+            with cached_metadata_path.open("r") as f:
+                metadata_dict = json.load(f)
+            cam_dict = metadata_dict.get("camera_parameters", {})
+            camera_params = GSVCameraParameters(
+                longitude=cam_dict["longitude"],
+                latitude=cam_dict["latitude"],
+                fov=cam_dict.get("fov", 90),
+                heading=cam_dict.get("heading", 0),
+                pitch=cam_dict.get("pitch", 0),
+                width=cam_dict.get("width", 640),
+                height=cam_dict.get("height", 640),
+            )
+            print("Recycling image and camera parameters from previous run.")
+            # Then skip straight to segmentation & height calc using `image` and `camera_params`
+            # (everything below in your function stays the same, starting from "segmentation_model = ...")
+            used_cache = True
+
+        except Exception:
+            # If loading fails, fall back to the normal flow
+            pass
+
+    # Image retrieval and camera parameter refinement
+    if(not used_cache):
+        camera_parameters_refiner = CameraParametersRefiner(height_estimation_params.building_polygon)
+        camera_parameters_refiner.MIN_FLOOR_RATIO = height_estimation_params.min_floor_ratio
+        camera_parameters_refiner.MIN_SKY_RATIO = height_estimation_params.min_sky_ratio
+
+        camera_params, _success, image = camera_parameters_refiner.adjust_parameters(
+            height_estimation_params.gsv_api_key,
+            pictures_directory=height_estimation_params.pictures_directory,
+            save_reel=height_estimation_params.save_reel,
+            overwrite_images=height_estimation_params.overwrite_images,
+            confidence_detection=height_estimation_params.confidence_detection,
+            max_number_of_images=height_estimation_params.max_number_of_images,
+            polygon_buffer_constant=height_estimation_params.polygon_buffer_constant,
+        )
 
     # Building segmentation
     segmentation_model = SegformerSegmentationWrapper(

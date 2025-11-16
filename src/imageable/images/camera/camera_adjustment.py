@@ -204,8 +204,9 @@ class CameraParametersRefiner:
                         pictures_directory.mkdir(parents=True, exist_ok=True)
                         path_to_image = pictures_directory / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)
                         path_to_metadata = pictures_directory / "metadata.json"
-                        Image.fromarray(image).save(path_to_image)
-                        _save_metadata(path_to_metadata, metadata.to_dict())
+                        if overwrite_images or not path_to_image.exists():
+                            Image.fromarray(image).save(path_to_image)
+                            _save_metadata(path_to_metadata, metadata.to_dict())
             else:
                 # If the image is None, we return the camera parameters
                 # and None as the image

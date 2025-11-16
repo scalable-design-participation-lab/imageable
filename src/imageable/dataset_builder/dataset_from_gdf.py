@@ -78,6 +78,7 @@ def dataset_from_gdf(
             height_params = HeightEstimationParameters(**vars(height_params))
             height_params.building_polygon = footprint
             pictures_dir = f"{height_params.pictures_directory}/{footprint_index}"
+            print("pictures dir "+pictures_dir)
             height_params.pictures_directory = pictures_dir
             height = building_height_from_single_view(height_params)
         else:
@@ -115,20 +116,48 @@ def dataset_from_gdf(
             msp.camera_parameters = camera_parameters
             materials = get_building_materials_segmentation(msp)
 
-        individual_building_props = extract_building_properties(
-            building_id=footprint_index,
-            polygon=footprint,
-            all_buildings=footprints,
-            crs=gdf.crs,
-            street_view_image=img,
-            height_value=height,
-            material_percentages=materials,
-            verbose=verbose,
-        )
+            individual_building_props = extract_building_properties(
+                building_id=footprint_index,
+                polygon=footprint,
+                all_buildings=footprints,
+                crs=gdf.crs,
+                street_view_image=img,
+                height_value=height,
+                material_percentages=materials,
+                verbose=verbose,
+            )
 
-        building_properties.append(individual_building_props)
+                        # Convert dataclass → plain dict
+            row = individual_building_props.to_dict()
+
+            # Expand material_percentages dict into flat columns
+            material_dict = row.get("material_percentages", {}) or {}
+
+            material_segmentation_parameters = dataset_params.building_material_properties
+            units = material_segmentation_parameters.units if material_segmentation_parameters is not None else "%"
+
+            suffix = {
+                "%": "pct",
+                "px": "px",
+                "m2": "m2",
+                "ft2": "ft2",
+                "mi2": "mi2",
+            }.get(units, units)
+
+            for name, value in material_dict.items():
+                col_name = f"mat_{name}_{suffix}"   # e.g. mat_brick_pct
+                row[col_name] = value
+
+            row["materials_units"] = units
+
+            # Remove the nested dict so it doesn't get stringified
+            row.pop("material_percentages", None)
+
+            building_properties.append(row)
 
     buildings_labelled_gdf = gpd.GeoDataFrame(building_properties, geometry=footprints, crs=gdf.crs)
+    if "material_percentages" in buildings_labelled_gdf.columns:
+        buildings_labelled_gdf = buildings_labelled_gdf.drop(columns=["material_percentages"])
     output_data_path = f"{dataset_params.output_dir_path}/dataset.{dataset_params.file_extension}"
     buildings_labelled_gdf.to_file(output_data_path)
 
