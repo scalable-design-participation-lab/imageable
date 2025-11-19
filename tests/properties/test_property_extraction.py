@@ -1,5 +1,5 @@
 from shapely import Polygon
-from imageable.properties.extract import extract_building_properties
+from imageable._extraction.extract import extract_building_properties
 
 
 def _get_mock_polygon() -> Polygon:

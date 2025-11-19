@@ -2,11 +2,11 @@
 import numpy as np
 from shapely import Polygon
 
-from imageable.features.materials.building_materials import (
+from imageable._features.materials.building_materials import (
     BuildingMaterialProperties,
     get_building_materials_segmentation,
 )
-from imageable.images.camera.camera_parameters import CameraParameters
+from imageable._images.camera.camera_parameters import CameraParameters
 
 
 def _get_mock_building_image():

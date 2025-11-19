@@ -1,7 +1,7 @@
 import numpy as np
 from shapely.geometry import Polygon
 
-from imageable.images.camera.building_observation import ObservationPointEstimator
+from imageable._images.camera.building_observation import ObservationPointEstimator
 
 # First test a valid result
 

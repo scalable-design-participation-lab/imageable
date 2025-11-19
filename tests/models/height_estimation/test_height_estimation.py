@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from shapely import Polygon
 
-from imageable.features.height.building_height import (
+from imageable._features.height.building_height import (
     HeightEstimationParameters,
     building_height_from_single_view,
     collect_heights,

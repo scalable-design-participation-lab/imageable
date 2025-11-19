@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 import numpy as np
 from PIL import Image
 
-from imageable.images.camera.camera_parameters import CameraParameters
-from imageable.images.download import fetch_image
-from imageable.images.image import ImageMetadata
-from imageable.images.camera.camera_parameters import CameraParameters
+from imageable._images.camera.camera_parameters import CameraParameters
+from imageable._images.download import download_street_view_image
+from imageable._images.image import ImageMetadata
+from imageable._images.camera.camera_parameters import CameraParameters
 
 
 @patch("imageable.images.download.requests.get")
@@ -42,7 +42,7 @@ def test_fetch_image_success(mock_requests_get):
     )
     # Call the function to test
 
-    image, metadata = fetch_image("FAKE_KEY", camera_parameters, save_path=None)
+    image, metadata = download_street_view_image("FAKE_KEY", camera_parameters, save_path=None)
 
     # Verify the image and metadata
     assert image is not None

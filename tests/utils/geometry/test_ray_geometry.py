@@ -2,7 +2,7 @@ import geopandas as gpd
 import numpy as np
 from shapely.geometry import LineString
 
-from imageable.utils.geometry.ray_geometry import get_closest_ray_intersection
+from imageable._utils.geometry.ray_geometry import get_closest_ray_intersection
 
 
 def test_closest_ray_intersection():

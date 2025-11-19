@@ -1,6 +1,6 @@
 import pytest
 
-from imageable.images.camera.camera_parameters import CameraParameters
+from imageable._images.camera.camera_parameters import CameraParameters
 
 
 # Camera parameters tests

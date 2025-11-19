@@ -7,7 +7,7 @@ import pytest
 import torch
 import yaml
 
-from imageable.models.lcnn.lcnn_wrapper import LCNNWrapper
+from imageable._models.lcnn.lcnn_wrapper import LCNNWrapper
 
 
 class TestLCNNWrapper:

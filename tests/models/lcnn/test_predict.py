@@ -5,7 +5,7 @@ import pytest
 import skimage.io
 import torch
 
-from imageable.models.lcnn.lcnn_wrapper import LCNNWrapper
+from imageable._models.lcnn.lcnn_wrapper import LCNNWrapper
 
 
 @pytest.fixture

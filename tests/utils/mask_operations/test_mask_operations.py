@@ -1,5 +1,5 @@
 import numpy as np
-from imageable.utils.masks.mask_operations import get_mask_area, get_mask_centroid, get_mask_limits, segment_horizontally_based_on_pixel_density
+from imageable._utils.masks.mask_operations import get_mask_area, get_mask_centroid, get_mask_limits, segment_horizontally_based_on_pixel_density
 
 
 def _get_mock_mask():
