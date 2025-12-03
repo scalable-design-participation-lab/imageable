@@ -3,12 +3,11 @@
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
 
-from imageable._images.download import download_street_view_image 
 
+from imageable._images.download import download_street_view_image 
 
 def get_image(
     key: str,

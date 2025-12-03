@@ -16,6 +16,51 @@ from imageable._images.image import ImageMetadata
 NA_FIELD = "N/A"
 RESPONSE_TIMEOUT = 10
 
+def download_street_view_image(
+    api_key: str,
+    building_polygon: Any,
+    save_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Download street view image for a building footprint.
+
+    Parameters
+    ----------
+    api_key
+        Google Street View API key.
+    building_polygon
+        Building footprint geometry.
+    save_path
+        Path to save the downloaded image.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the image and metadata.
+    """
+    # Here we would compute the camera parameters based on the building polygon.
+    # For simplicity, let's assume we have some fixed camera parameters.
+    camera_parameters = CameraParameters(
+        latitude=0.0,
+        longitude=0.0,
+        heading=0.0,
+        fov=90.0,
+        pitch=0.0,
+        width=512,
+        height=512,
+    )
+
+    image, metadata = fetch_image(
+        api_key,
+        camera_parameters,
+        save_path,
+        overwrite_image=True,
+    )
+
+    return {
+        "image": image,
+        "metadata": metadata.to_dict() if metadata else {},
+    }
 
 def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
     """

@@ -3,7 +3,7 @@
 from typing import Any
 from shapely.geometry import Polygon
 
-from imageable.core.properties import BuildingProperties
+from imageable._extraction.building import BuildingProperties
 from imageable._extraction.extract import extract_building_properties
 
 
@@ -12,7 +12,7 @@ def get_dataset(
     building_footprint: Polygon,
     *,
     neighbor_radius: float = 100.0,
-    crs: str = "EPSG:4326",
+    crs: int = 4326,
     image: Any = None,
     verbose: bool = False,
 ) -> BuildingProperties:
@@ -50,7 +50,7 @@ def get_dataset(
     """
     # Use existing extract function
     return extract_building_properties(
-        building_id=None,  # Auto-generate if needed
+        building_id=key, 
         polygon=building_footprint,
         all_buildings=[],  # Single building mode
         neighbor_radius=neighbor_radius,
