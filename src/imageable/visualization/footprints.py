@@ -172,7 +172,8 @@ def visualize_materials(
         [30, 144, 255],     # water
         [255, 224, 189],    # human body
         [135, 206, 250]     # sky
-    ]
+    ],
+    paths_building_images:List[str] = None
 ) -> pdk.Deck:
     #Open the data
     data = _load_geojson(geojson)
@@ -224,6 +225,11 @@ def visualize_materials(
             height = float(height)
             elevation = height * elevation_scale
         
+        if paths_building_images is not None and len(paths_building_images) == len(data.get("features", [])):
+            props["image_path"] = _file_to_base64(paths_building_images[data.get("features", []).index(feature)])
+        else:
+            props["image_path"] = None
+
         props["r"] = int(r)
         props["g"] = int(g)
         props["b"] = int(b)
@@ -247,12 +253,16 @@ def visualize_materials(
 
     tooltip = {
         "html": """
+        <div>
         <b>Height:</b> {""" + height_column + """}<br/>
         <b>Dominant material:</b> {dominant_material}<br/>
-        <b>building_ID:</b> {building_id}
+        <b>building_ID:</b> {building_id}<br/>
+        <img src="{image_path}" style="max-width:200px; max-height:200px; margin-top:5px;"/>
+        </div>
         """,
         "style": {"backgroundColor": "rgba(0,0,0,0.8)", "color": "white"},
     }
+
 
     deck = pdk.Deck(
         layers = [layer],
@@ -265,6 +275,13 @@ def visualize_materials(
         deck.to_html(save_html, notebook_display = False)
 
     return deck
+
+
+def _file_to_base64(path):
+    import base64
+    with open(path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    return "data:image/jpeg;base64," + encoded
 
 
 

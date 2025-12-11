@@ -9,6 +9,8 @@ from sklearn.metrics import pairwise_distances
 from imageable._models.base import BaseModelWrapper
 from libpysal.weights import Queen  # or Rook
 from spopt.region import Skater
+import joblib
+from pathlib import Path
 
 def get_best_k_silhouette(
     data: np.ndarray,
@@ -61,19 +63,20 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         kmeans_kwargs: Optional[Dict[str, Any]] = None,
         distance_eps: float = 1e-12,
         feature_indices_used_for_clustering: Optional[List[int]] = None,
+        scale: bool = False,               
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
         self.kmeans_kwargs = {} if kmeans_kwargs is None else kmeans_kwargs
         self.distance_eps = distance_eps
-
-        self._kmeans: Optional[KMeans] = None
-        self._cluster_centers: Optional[np.ndarray] = None
-        self._cluster_models: List[Any] = []
-        self._is_loaded: bool = False
-
-        # indices of features used only for clustering / distances
         self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
+        self.scale = scale                 
+        self.scaler = StandardScaler() if scale else None    
+
+        self._kmeans = None
+        self._cluster_centers = None
+        self._cluster_models = []
+        self._is_loaded = False
 
     def load_model(self, X: np.ndarray, y: np.ndarray) -> None:
         """
@@ -87,6 +90,10 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         X = np.asarray(X)
         y = np.asarray(y)
 
+        # ---- SCALE IF NEEDED ----
+        if self.scaler is not None:
+            X = self.scaler.fit_transform(X)
+        # X is now the "training X" used throughout
         X_complete = X.copy()
 
         # features used for clustering (maybe a subset)
@@ -125,15 +132,21 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         """
         Compute soft assignment weights for each sample to each cluster,
         based on distance to cluster centers.
+
+        X is assumed to be in the same feature space as training X
+        (i.e., already scaled if self.scaler is not None).
         """
         if self._cluster_centers is None:
             raise RuntimeError("Model not loaded: no cluster centers.")
 
         X = np.asarray(X)
-        if self.feature_indices_used_for_clustering is not None:
-            X = X[:, self.feature_indices_used_for_clustering]
 
-        dists = pairwise_distances(X, self._cluster_centers)
+        if self.feature_indices_used_for_clustering is not None:
+            X_cluster = X[:, self.feature_indices_used_for_clustering]
+        else:
+            X_cluster = X
+
+        dists = pairwise_distances(X_cluster, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
         w = np.exp(-dists)
         w = w / np.sum(w, axis=1, keepdims=True)
@@ -146,9 +159,15 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         X = self.preprocess(inputs)
         X = np.asarray(X)
 
-        weights = self._compute_weights(X)
+        # 🔹 Single place where scaling happens at inference
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X)
+        else:
+            X_scaled = X
 
-        preds_per_cluster = [mdl.predict(X) for mdl in self._cluster_models]
+        weights = self._compute_weights(X_scaled)
+
+        preds_per_cluster = [mdl.predict(X_scaled) for mdl in self._cluster_models]
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)
@@ -165,6 +184,31 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         if not self.is_loaded():
             raise RuntimeError("Model not loaded.")
         return self._cluster_models
+
+    def export_model(
+            self,
+            save_dir: str,
+            filename: str) ->None:
+        """
+        Export the ensemble model as a pickle file.
+
+        Parameters
+        ----------
+        save_dir
+            Directory where the model will be saved.
+
+        filename
+            Name of the file to save the model as.
+        """
+        if not self.is_loaded():
+            raise RuntimeError("Cannot export an unloaded model.")
+
+        else:
+            save_path = Path(save_dir) / f"{filename}.pkl"
+            if(not Path(save_dir).exists()):
+                Path(save_dir).mkdir(parents=True, exist_ok=True)
+            joblib.dump(self, save_path)
+
 
 
 
@@ -386,3 +430,27 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         if self._skater_labels is None:
             raise RuntimeError("Model not loaded.")
         return self._skater_labels
+    
+    def export_model(
+            self,
+            save_dir: str,
+            filename: str) ->None:
+        """
+        Export the ensemble model as a pickle file.
+
+        Parameters
+        ----------
+        save_dir
+            Directory where the model will be saved.
+
+        filename
+            Name of the file to save the model as.
+        """
+        if not self.is_loaded():
+            raise RuntimeError("Cannot export an unloaded model.")
+
+        else:
+            save_path = Path(save_dir) / f"{filename}.pkl"
+            if(not Path(save_dir).exists()):
+                Path(save_dir).mkdir(parents=True, exist_ok=True)
+            joblib.dump(self, save_path)

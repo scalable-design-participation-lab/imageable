@@ -285,20 +285,46 @@ class HeightCalculator:
         return self._merge_lines(vert_line_refine)
 
     def _extend_vertical_lines(self, vertical_lines: list, segmentation: np.ndarray, vptz: np.ndarray) -> list:
-        """Extend vertical lines to building boundaries."""
-        extd_lines = []
+        """Extend vertical lines to building boundaries, then drop very short ones."""
+
+        extd_lines: list = []
+
+        building_label = int(self.config["SEGMENTATION"]["BuildingLabel"])
+
+        # --- building bbox (global for the image) ---
+        building_mask = segmentation == building_label
+        ys, xs = np.where(building_mask)
+        if ys.size == 0:
+            return []
+
+        y_min = ys.min()
+        y_max = ys.max()
+        building_height_px = float(y_max - y_min)
+        if building_height_px <= 0:
+            return []
+
+        # fraction of building height a line must cover to be kept
+        min_frac = 0.3  # e.g. 30%, tune this
 
         for line in vertical_lines:
-            # Refine with VP
+            # refine with VP as before
             line = self.line_refiner.refine_with_vpt(line, vptz)
-
-            # Extend to building boundaries
             extd_a, extd_b = self.line_refiner.extend_lines(line[0], line[1], segmentation, self.config)
 
-            if len(extd_a) > 0 and len(extd_b) > 0:
-                extd_lines.append([extd_a, extd_b])
+            if len(extd_a) == 0 or len(extd_b) == 0:
+                continue
+
+            # vertical length of this extended line
+            line_height_px = abs(extd_a[0] - extd_b[0])
+
+            # discard if too small relative to building bbox height
+            if line_height_px < min_frac * building_height_px:
+                continue
+
+            extd_lines.append([extd_a, extd_b])
 
         return extd_lines
+
 
     def _calculate_line_heights(
         self,
@@ -468,16 +494,36 @@ class HeightCalculator:
 
     def _visualize_results(self, image: np.ndarray, segmentation: np.ndarray, grouped_lines: list) -> None:
         """Visualize final height results."""
+        building_mask = (segmentation == 1)
         plt.figure(figsize=(10, 8))
         plt.imshow(image)
-        plt.imshow(segmentation, alpha=0.3)
+        plt.imshow(building_mask, alpha=0.5)
 
         heights = []
         ax_legends = []
 
+        # --- outlier threshold based on ratio of medians ---
+        all_medians = [g[-2] for g in grouped_lines]
+
+        if len(all_medians) >= 2:
+            sorted_meds = sorted(all_medians)
+            second_largest = sorted_meds[-2]
+            max_median = sorted_meds[-1]
+
+            factor = 3.0  # how strict the filter is
+            outlier_cutoff = second_largest * factor
+        else:
+            outlier_cutoff = float("inf")
+        # ---------------------------------------------------
+
         for i, group in enumerate(grouped_lines):
             median_height = group[-2]
             mean_height = group[-1]
+
+            # skip outlier groups
+            if median_height > outlier_cutoff:
+                continue
+
             heights.append([median_height, mean_height])
 
             for j in range(len(group) - 2):
@@ -492,10 +538,12 @@ class HeightCalculator:
 
         if ax_legends:
             plt.legend(
-                ax_legends, [f"Building {i + 1}: mean={h[1]:.2f}m, median={h[0]:.2f}m" for i, h in enumerate(heights)]
+                ax_legends,
+                [f"Building {i + 1}: mean={h[1]:.2f}m, median={h[0]:.2f}m" for i, h in enumerate(heights)]
             )
 
-        plt.title("Height Estimation Results")
+        #plt.title("Height Estimation Results")
+        plt.axis("off")
         plt.show()
 
 
