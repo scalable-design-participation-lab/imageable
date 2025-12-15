@@ -23,13 +23,13 @@ class HeightCorrectionModel(BaseModelWrapper):
         "n_vertices",
         "shape_length",
         "complexity",
-        "inverse_average_segment_length",
-        "vertices_per_area",
-        "average_complexity_per_segment",
+        'inverse_average_segment_length',
+        'vertices_per_area',
+        'average_complexity_per_segment',
         "isoperimetric_quotient",
         "mean_distance_to_neighbors",
         "nearest_neighbor_distance",
-        "building_height",
+        "building_height"
     ]
 
     FEATURES_MAPPING_DICT: ClassVar[dict[str, int]] = {

@@ -5,10 +5,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 from shapely import Polygon
-
 from imageable._images.camera.camera_adjustment import CameraParametersRefiner
 from typing import Union
-from imageable._images.camera.camera_adjustment import CameraParametersRefiner
 from imageable._models.height_estimation.height_calculator import (
     CameraParameters,
     HeightCalculator,
@@ -22,6 +20,8 @@ from imageable._models.vpts.vpts_wrapper import VPTSWrapper
 from PIL import Image
 import json
 from imageable._features.materials.building_materials import BuildingMaterialProperties, get_building_materials_segmentation
+from imageable._extraction.extract import extract_building_properties
+
 
 @dataclass
 class HeightEstimationParameters:
@@ -131,11 +131,13 @@ class HeightEstimationParameters:
     use_pitch_only: bool = False
     use_detected_vpt_only: bool = False
     shift_segmentation_labels: bool = True
+    all_buildings: list[Polygon] = None
 
 
 MIN_FOCAL_LENGTH = 1
 MAX_FOCAL_LENGTH = 5000
 DEFAULT_FOCAL_LENGTH = 90
+DEFAULT_LINE_SCORE_THRESHOLD = 0.1
 
 
 
@@ -238,6 +240,8 @@ def building_height_from_single_view(
     height
         Estimated height of the building in meters.
     """
+    from imageable.models.line_param_selection_model import LineParameterSelectionModel
+
 
     pictures_directory = Path(height_estimation_params.pictures_directory)
     cached_image_path = pictures_directory / "image.jpg"
@@ -320,6 +324,28 @@ def building_height_from_single_view(
         seed=height_estimation_params.seed_vp_ransac,
         length_threshold=height_estimation_params.length_threshold,
     )
+    # Predict the best line detection parameter
+    line_parameter_selection_model = LineParameterSelectionModel()
+    line_parameter_selection_model.load_model()
+    
+    props = extract_building_properties(
+        building_id=height_estimation_params.building_label,
+        polygon=height_estimation_params.building_polygon,
+        all_buildings=height_estimation_params.all_buildings,
+        height_value=None,
+        verbose=False,
+    )
+
+    props = props.to_dict()
+    features_to_use = line_parameter_selection_model.corr_model.FEATURES_USED
+    vector = np.array([[props[f] for f in features_to_use]])
+    vector = vector.reshape(1,-1)
+    try:
+        line_score_threshold = line_parameter_selection_model.predict(vector)
+        print(f"Predicted line score threshold: {line_score_threshold}")
+    except Exception:
+        line_score_threshold = DEFAULT_LINE_SCORE_THRESHOLD
+    
     config_calculation = {
         "STREET_VIEW": {"HVFoV": str(camera_params.fov), "CameraHeight": "2.5"},
         "SEGMENTATION": {
@@ -329,7 +355,7 @@ def building_height_from_single_view(
         },
         "LINE_CLASSIFY": {
             "AngleThres": str(height_estimation_params.line_classification_angle_threshold),
-            "LineScore": str(height_estimation_params.line_score_threshold),
+            "LineScore": str(line_score_threshold),
         },
         "LINE_REFINE": {"Edge_Thres": height_estimation_params.edge_threshold},
         "HEIGHT_MEAS": {"MaxDBSANDist": str(height_estimation_params.max_dbscan_distance)},
