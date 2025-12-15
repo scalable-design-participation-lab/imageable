@@ -18,43 +18,89 @@ RESPONSE_TIMEOUT = 10
 
 def download_street_view_image(
     api_key: str,
-    building_polygon: Any,
+    building_polygon_or_camera: Any,
     save_path: str | None = None,
-) -> dict[str, Any]:
+    overwrite_image: bool = True,
+) -> dict[str, Any] | tuple[npt.NDArray[np.uint8] | None, ImageMetadata | None]:
     """
-    Download street view image for a building footprint.
+    Download street view image for a building footprint or camera parameters.
 
     Parameters
     ----------
     api_key
         Google Street View API key.
-    building_polygon
-        Building footprint geometry.
+    building_polygon_or_camera
+        Either a Shapely Polygon (building footprint) or CameraParameters object.
     save_path
         Path to save the downloaded image.
+    overwrite_image
+        If True, overwrite existing images.
 
     Returns
     -------
-    dict
-        A dictionary containing the image and metadata.
+    If building_polygon passed: dict with "image" and "metadata" keys
+    If CameraParameters passed: tuple of (image_array, ImageMetadata)
     """
-    # Here we would compute the camera parameters based on the building polygon.
-    # For simplicity, let's assume we have some fixed camera parameters.
-    camera_parameters = CameraParameters(
-        latitude=0.0,
-        longitude=0.0,
-        heading=0.0,
-        fov=90.0,
-        pitch=0.0,
-        width=512,
-        height=512,
-    )
+    # Check if we received CameraParameters directly
+    if isinstance(building_polygon_or_camera, CameraParameters):
+        # Direct camera parameters - call fetch_image and return tuple
+        return fetch_image(
+            api_key,
+            building_polygon_or_camera,
+            save_path,
+            overwrite_image=overwrite_image,
+        )
+    
+    # It's a polygon - compute camera parameters from it
+    polygon = building_polygon_or_camera
+    
+    # Try to find optimal observation point
+    from imageable._images.camera.building_observation import ObservationPointEstimator
+    
+    try:
+        estimator = ObservationPointEstimator(polygon)
+        observation_point, _, heading, _ = estimator.get_observation_point()
+        
+        if observation_point is not None and heading is not None:
+            camera_parameters = CameraParameters(
+                latitude=observation_point[1],  # (lon, lat) -> lat
+                longitude=observation_point[0],  # (lon, lat) -> lon
+                heading=heading,
+                fov=90.0,
+                pitch=0.0,
+                width=640,
+                height=640,
+            )
+        else:
+            # Fallback to centroid
+            centroid = polygon.centroid
+            camera_parameters = CameraParameters(
+                latitude=centroid.y,
+                longitude=centroid.x,
+                heading=0.0,
+                fov=90.0,
+                pitch=0.0,
+                width=640,
+                height=640,
+            )
+    except Exception:
+        # Fallback to centroid on any error
+        centroid = polygon.centroid
+        camera_parameters = CameraParameters(
+            latitude=centroid.y,
+            longitude=centroid.x,
+            heading=0.0,
+            fov=90.0,
+            pitch=0.0,
+            width=640,
+            height=640,
+        )
 
     image, metadata = fetch_image(
         api_key,
         camera_parameters,
         save_path,
-        overwrite_image=True,
+        overwrite_image=overwrite_image,
     )
 
     return {

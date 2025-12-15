@@ -50,7 +50,7 @@ def get_image(
     # Use existing download function
     result = download_street_view_image(
         api_key=key,
-        building_polygon=building_footprint,
+        building_polygon_or_camera=building_footprint,
         save_path=str(save_path) if save_path else None,
     )
     

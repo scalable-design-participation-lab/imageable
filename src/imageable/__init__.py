@@ -38,27 +38,33 @@ from __future__ import annotations
 # Version - import first as it has no dependencies
 from imageable._version import __version__
 
+from imageable.core.building_data import (
+    get_building_data_from_gdf,
+    get_building_data_from_geojson,
+    get_building_data_from_file,
+)
+
+# Data classes
 from imageable._extraction.building import BuildingProperties
+
+# Single building / image utilities
 from imageable.core.dataset import get_dataset
 from imageable.core.image import get_image
 
-# Common types users might need
-from imageable._images.camera.camera_parameters import CameraParameters
-from imageable._images.image import ImageMetadata
-
 
 __all__ = [
-    # Meta
-    "__version__",
-    # Core API
-    "BuildingProperties",
+    # Main API (new)
+    "get_building_data_from_gdf",
+    "get_building_data_from_geojson", 
+    "get_building_data_from_file",
+    # Single building
     "get_dataset",
     "get_image",
-    # Types
-    "CameraParameters",
-    "ImageMetadata",
+    # Data classes
+    "BuildingProperties",
+    # Meta
+    "__version__",
 ]
-
 # Version tuple for programmatic access
 __version_info__ = tuple(int(x) for x in __version__.split(".")[:3])
 

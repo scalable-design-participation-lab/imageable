@@ -1,30 +1,36 @@
 """
-Core public API for imageable.
+imageable: Computer Vision Library for Urban Building Analysis
 
-This module provides the main entry points for building analysis:
-
-- ``get_image``: Fetch street view images for building footprints
-- ``get_dataset``: Extract all 43+ building properties
-- ``BuildingProperties``: Dataclass containing extracted properties
-
-Examples
---------
->>> from imageable.core import get_image, get_dataset, BuildingProperties
->>> from shapely.geometry import Polygon
->>>
->>> footprint = Polygon([(0, 0), (10, 0), (10, 20), (0, 20)])
->>> image, metadata = get_image(api_key, footprint)
->>> props = get_dataset(api_key, footprint)
+Extract 43+ building properties from street view images and footprints.
 """
 
-# Import directly from internal modules to avoid circular imports
-# These imports bypass imageable/__init__.py
+# Core API - explicit input functions
+from imageable.core.building_data import (
+    get_building_data_from_gdf,
+    get_building_data_from_geojson,
+    get_building_data_from_file,
+)
+
+# Data classes
 from imageable._extraction.building import BuildingProperties
+
+# Single building / image utilities
 from imageable.core.dataset import get_dataset
 from imageable.core.image import get_image
 
+# Version
+from imageable._version import __version__
+
 __all__ = [
-    "BuildingProperties",
+    # Main API (new)
+    "get_building_data_from_gdf",
+    "get_building_data_from_geojson", 
+    "get_building_data_from_file",
+    # Single building
     "get_dataset",
     "get_image",
+    # Data classes
+    "BuildingProperties",
+    # Meta
+    "__version__",
 ]
