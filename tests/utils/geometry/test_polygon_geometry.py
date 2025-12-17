@@ -1,7 +1,7 @@
 import numpy as np
 from shapely.geometry import Polygon
 
-from imageable.utils.geometry.polygons import get_polygon_edge_midpoints, get_polygon_outward_vectors, get_signed_area
+from imageable._utils.geometry.polygons import get_polygon_edge_midpoints, get_polygon_outward_vectors, get_signed_area
 
 
 def test_signed_area():

@@ -1,0 +1,255 @@
+import io
+import json
+import logging
+from http import HTTPStatus
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import numpy.typing as npt
+import requests
+from PIL import Image
+
+from imageable._images.camera.camera_parameters import CameraParameters
+from imageable._images.image import ImageMetadata
+
+NA_FIELD = "N/A"
+RESPONSE_TIMEOUT = 10
+
+def download_street_view_image(
+    api_key: str,
+    building_polygon_or_camera: Any,
+    save_path: str | None = None,
+    overwrite_image: bool = True,
+) -> dict[str, Any] | tuple[npt.NDArray[np.uint8] | None, ImageMetadata | None]:
+    """
+    Download street view image for a building footprint or camera parameters.
+
+    Parameters
+    ----------
+    api_key
+        Google Street View API key.
+    building_polygon_or_camera
+        Either a Shapely Polygon (building footprint) or CameraParameters object.
+    save_path
+        Path to save the downloaded image.
+    overwrite_image
+        If True, overwrite existing images.
+
+    Returns
+    -------
+    If building_polygon passed: dict with "image" and "metadata" keys
+    If CameraParameters passed: tuple of (image_array, ImageMetadata)
+    """
+    # Check if we received CameraParameters directly
+    if isinstance(building_polygon_or_camera, CameraParameters):
+        # Direct camera parameters - call fetch_image and return tuple
+        return fetch_image(
+            api_key,
+            building_polygon_or_camera,
+            save_path,
+            overwrite_image=overwrite_image,
+        )
+    
+    # It's a polygon - compute camera parameters from it
+    polygon = building_polygon_or_camera
+    
+    # Try to find optimal observation point
+    from imageable._images.camera.building_observation import ObservationPointEstimator
+    
+    try:
+        estimator = ObservationPointEstimator(polygon)
+        observation_point, _, heading, _ = estimator.get_observation_point()
+        
+        if observation_point is not None and heading is not None:
+            camera_parameters = CameraParameters(
+                latitude=observation_point[1],  # (lon, lat) -> lat
+                longitude=observation_point[0],  # (lon, lat) -> lon
+                heading=heading,
+                fov=90.0,
+                pitch=0.0,
+                width=640,
+                height=640,
+            )
+        else:
+            # Fallback to centroid
+            centroid = polygon.centroid
+            camera_parameters = CameraParameters(
+                latitude=centroid.y,
+                longitude=centroid.x,
+                heading=0.0,
+                fov=90.0,
+                pitch=0.0,
+                width=640,
+                height=640,
+            )
+    except Exception:
+        # Fallback to centroid on any error
+        centroid = polygon.centroid
+        camera_parameters = CameraParameters(
+            latitude=centroid.y,
+            longitude=centroid.x,
+            heading=0.0,
+            fov=90.0,
+            pitch=0.0,
+            width=640,
+            height=640,
+        )
+
+    image, metadata = fetch_image(
+        api_key,
+        camera_parameters,
+        save_path,
+        overwrite_image=overwrite_image,
+    )
+
+    return {
+        "image": image,
+        "metadata": metadata.to_dict() if metadata else {},
+    }
+
+def _save_metadata(save_path: str, metadata_dictionary: dict[str, Any]) -> None:
+    """
+    Save metadata to a JSON file.
+
+    Parameters
+    ----------
+    save_path
+        The path where the metadata will be saved.
+    metadata_dictionary
+        The metadata dictionary to save.
+    """
+    try:
+        parent_path = Path(save_path).parent
+        # Ensure the directory exists
+        parent_path.mkdir(parents=True, exist_ok=True)
+        metadata_path = parent_path / "metadata.json"
+        with metadata_path.open("w") as f:
+            json.dump(metadata_dictionary, f, indent=4)
+    except Exception:
+        logging.exception("Failed to save metadata")
+
+
+def fetch_image(
+    api_key: str, camera_parameters: CameraParameters, save_path: str | None, overwrite_image: bool = True
+) -> tuple[npt.NDArray[np.uint8] | None, ImageMetadata | None]:
+    """
+    Interface applied to fetch the Street View image based on CameraParameters.
+
+    Parameters
+    ----------
+    api_key
+        Google API key.
+    camera_parameters
+        The paremeters applied to fetch the image.
+    save_path
+        If None the image will not be saved, otherwise the image will be saved to the specified path.
+    overwrite_image
+        If True and save_path is not None, the image will be overwritten if it already exists.
+
+    Returns
+    -------
+    _______
+        image
+            The requested image as a numpy array
+        metadata
+            Image metadata
+    """
+    # Check if the image already exists and should not be overwritten
+    if save_path is not None and not overwrite_image and Path(save_path).exists():
+        try:
+            print("Recycling image")
+            img = np.array(Image.open(save_path))
+            metadata_path = Path(save_path).parent / "metadata.json"
+            with metadata_path.open("r") as f:
+                metadata_dict = json.load(f)
+            img_metadata = ImageMetadata(
+                status=metadata_dict.get("status", False),
+                date=metadata_dict.get("date", NA_FIELD),
+                img_size=tuple(metadata_dict.get("img_size", (None, None))),
+                source=metadata_dict.get("source", NA_FIELD),
+                latitude=metadata_dict.get("latitude", np.nan),
+                longitude=metadata_dict.get("longitude", np.nan),
+                pano_id=metadata_dict.get("pano_id", NA_FIELD),
+                camera_parameters=CameraParameters(**metadata_dict.get("camera_parameters", {})),
+            )
+            return img, img_metadata
+        except Exception:
+            print("Failed to load existing image or metadata. Fetching new image.")
+            # just continue; do NOT return
+            pass
+    # Base URL for the Google Street View API
+    base_url = "https://maps.googleapis.com/maps/api/streetview"
+
+    # Construct the parameters for the API request
+    params = {
+        "location": f"{camera_parameters.latitude}, {camera_parameters.longitude}",
+        "heading": str(camera_parameters.heading),
+        "pitch": str(camera_parameters.pitch),
+        "fov": str(camera_parameters.fov),
+        "size": f"{camera_parameters.width}x{camera_parameters.height}",
+        "key": api_key,
+    }
+
+    # First let's fetch the metadata
+    metadata_url = "https://maps.googleapis.com/maps/api/streetview/metadata"
+    response_metadata = requests.get(metadata_url, params=params, timeout=RESPONSE_TIMEOUT)
+
+    # If the status code is 200, we can extract the metadata
+    if response_metadata.status_code == HTTPStatus.OK:
+        metadata = response_metadata.json()
+        # Fill the fields of the metadata
+        status = True
+        date = metadata.get("date", NA_FIELD)
+        imgsize = (camera_parameters.width, camera_parameters.height)
+        source = metadata.get("copyright", NA_FIELD)
+        latitude = metadata.get("location", {}).get("lat", np.nan)
+        longitude = metadata.get("location", {}).get("lng", np.nan)
+        pano_id = metadata.get("pano_id", NA_FIELD)
+
+        img_metadata = ImageMetadata(
+            status=status,
+            date=date,
+            img_size=imgsize,
+            source=source,
+            latitude=latitude,
+            longitude=longitude,
+            pano_id=pano_id,
+            camera_parameters=camera_parameters,
+        )
+
+        # Now let's get the image
+        response = requests.get(base_url, params=params, stream=True, timeout=RESPONSE_TIMEOUT)
+        image_array = None
+
+        if response.status_code == HTTPStatus.OK:
+            image = response.content
+            image = io.BytesIO(image)
+            image_array = np.array(Image.open(image))
+            if save_path is not None:
+                img_save_path = Path(save_path)
+                img_save_path.parent.mkdir(parents=True, exist_ok=True)
+                with img_save_path.open("wb") as f:
+                    f.write(response.content)
+        else:
+            img_metadata.status = False
+
+        # If save_path is not None, we will save the metadata
+        if save_path is not None:
+            _save_metadata(save_path, img_metadata.to_dict())
+        return image_array, img_metadata
+
+    # We will return an empty metadata in cases where request fails
+    img_metadata = ImageMetadata(
+        status=False,
+        date=NA_FIELD,
+        img_size=(None, None),
+        source=NA_FIELD,
+        latitude=np.nan,
+        longitude=np.nan,
+        pano_id=NA_FIELD,
+        camera_parameters=camera_parameters.to_dict(),
+    )
+    if save_path is not None:
+        _save_metadata(save_path, img_metadata.to_dict())
+    return None, img_metadata

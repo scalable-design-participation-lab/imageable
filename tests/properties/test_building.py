@@ -9,7 +9,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from imageable.properties.building import BuildingProperties
+from imageable._extraction.building import BuildingProperties
 
 
 class TestBuildingPropertiesInitialization:

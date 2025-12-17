@@ -1,4 +1,4 @@
-from imageable.utils.geometry.point_geometry import get_euclidean_distance_meters, get_heading_between_points_euclidean
+from imageable._utils.geometry.point_geometry import get_euclidean_distance_meters, get_heading_between_points_euclidean
 
 
 def test_heading_between_points_east_reference():

@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 from shapely.geometry import Polygon
 
-from imageable.properties.footprint import FootprintCalculator, extract_footprint_properties, find_neighboring_buildings
+from imageable._extraction.footprint import FootprintCalculator, extract_footprint_properties, find_neighboring_buildings
 
 
 # ==================== FIXTURES ====================

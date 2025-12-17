@@ -1,5 +1,5 @@
 
-from imageable.models.vpts.vpts_wrapper import VPTSWrapper
+from imageable._models.vpts.vpts_wrapper import VPTSWrapper
 import numpy as np
 from PIL import Image, ImageDraw
 def test_vpts_wrapper_initialization():

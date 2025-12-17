@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from imageable.models.huggingface.segformer_segmentation import (
+from imageable._models.huggingface.segformer_segmentation import (
     SegformerSegmentationWrapper,
 )
 
