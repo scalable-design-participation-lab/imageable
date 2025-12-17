@@ -1,12 +1,12 @@
-from imageable.models.base import BaseModelWrapper
-from imageable.correction_ensembles.cluster_weighted_ensemble import (
+from imageable._models.base import BaseModelWrapper
+from imageable._correction_ensembles.cluster_weighted_ensemble import (
     ClusterWeightedEnsembleWrapper,
     ClusterWeightedEnsembleSpatialWrapper,
 )
 from huggingface_hub import hf_hub_download, try_to_load_from_cache
 import joblib
-from imageable.properties.extract import extract_building_properties
-from imageable.features.height.building_height import HeightEstimationParameters
+from imageable._extraction.extract import extract_building_properties
+from imageable._features.height.building_height import HeightEstimationParameters
 from shapely.geometry import Polygon
 import numpy as np
 from typing import ClassVar

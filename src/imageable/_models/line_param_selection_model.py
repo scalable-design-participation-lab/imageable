@@ -1,7 +1,7 @@
 
 
-from imageable.models.base import BaseModelWrapper
-from imageable.models.height_correction_model import HeightCorrectionModel
+from imageable._models.base import BaseModelWrapper
+from imageable._models.height_correction_model import HeightCorrectionModel
 from huggingface_hub import hf_hub_download, try_to_load_from_cache
 import joblib
 import numpy as np

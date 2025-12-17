@@ -158,7 +158,7 @@ def corrected_height_from_single_view(
     3. Computes material percentages from the image.
     4. Calls `correction_model.predict` with the raw height and extracted features.
     """
-    from imageable.models.height_correction_model import HeightCorrectionModel
+    from imageable._models.height_correction_model import HeightCorrectionModel
     if correction_model is None:
         correction_model = HeightCorrectionModel()
     correction_model.load_model()
@@ -240,7 +240,7 @@ def building_height_from_single_view(
     height
         Estimated height of the building in meters.
     """
-    from imageable.models.line_param_selection_model import LineParameterSelectionModel
+    from imageable._models.line_param_selection_model import LineParameterSelectionModel
 
 
     pictures_directory = Path(height_estimation_params.pictures_directory)
