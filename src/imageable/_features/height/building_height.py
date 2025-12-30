@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 from shapely import Polygon
 from imageable._images.camera.camera_adjustment import CameraParametersRefiner
+from imageable._images.camera.building_observation import ObservationPointEstimator
 from typing import Union
 from imageable._models.height_estimation.height_calculator import (
     CameraParameters,
@@ -97,6 +98,7 @@ class HeightEstimationParameters:
     gsv_api_key: str
     building_polygon: Polygon
     pictures_directory: str = str(Path(__file__).resolve().parents[3] / "notebooks" / "pictures")
+    image:np.ndarray = None
     # Parameter refinement parameters
     save_reel: bool = False
     overwrite_images: bool = True
@@ -167,46 +169,62 @@ def corrected_height_from_single_view(
 
     # 1. Raw height estimate
     raw_height = building_height_from_single_view(height_estimation_parameters)
-
+    print("DEBUG: Raw height =", raw_height)
     # 2–3. Try to load image + metadata and compute material percentages
     street_view_image = None
     material_percentages = None
 
-    pictures_dir = Path(height_estimation_parameters.pictures_directory)
-
-    try:
-        image_path = pictures_dir / "image.jpg"
-        metadata_path = pictures_dir / "metadata.json"
-
-        street_view_image = np.array(Image.open(image_path))
-
-        with open(metadata_path) as f:
-            metadata = json.load(f)
-
-        camera_parameters_dict = metadata["camera_parameters"]
-        camera_parameters = CameraParameters(
-            longitude=camera_parameters_dict["longitude"],
-            latitude=camera_parameters_dict["latitude"],
-        )
-        camera_parameters.fov = camera_parameters_dict["fov"]
-        camera_parameters.heading = camera_parameters_dict["heading"]
-        camera_parameters.pitch = camera_parameters_dict["pitch"]
-        camera_parameters.height = camera_parameters_dict["height"]
-        camera_parameters.width = camera_parameters_dict["width"]
-
+    if(not height_estimation_parameters.image is None):
+        street_view_image = height_estimation_parameters.image
+        #print("WAS NOT NONE")
         bmp = BuildingMaterialProperties(
-            img=street_view_image,
-            verbose=verbose,
-        )
+                img=street_view_image,
+                verbose=verbose,
+            )
+        camera_params = None
         bmp.building_height = raw_height
         bmp.footprint = height_estimation_parameters.building_polygon
-        bmp.camera_parameters = camera_parameters
+        bmp.camera_parameters = camera_params
 
         material_percentages = get_building_materials_segmentation(bmp)
+        #print(f"DEBUG: material percentages 2 {material_percentages}")
 
-    except Exception:
-        street_view_image = None
-        material_percentages = None
+    else:
+        #print("WAS NONE")
+        pictures_dir = Path(height_estimation_parameters.pictures_directory)
+        try:
+            image_path = pictures_dir / "image.jpg"
+            metadata_path = pictures_dir / "metadata.json"
+
+            street_view_image = np.array(Image.open(image_path))
+
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+
+            camera_parameters_dict = metadata["camera_parameters"]
+            camera_parameters = GSVCameraParameters(
+                longitude=camera_parameters_dict["longitude"],
+                latitude=camera_parameters_dict["latitude"],
+            )
+            camera_parameters.fov = camera_parameters_dict["fov"]
+            camera_parameters.heading = camera_parameters_dict["heading"]
+            camera_parameters.pitch = camera_parameters_dict["pitch"]
+            camera_parameters.height = camera_parameters_dict["height"]
+            camera_parameters.width = camera_parameters_dict["width"]
+
+            bmp = BuildingMaterialProperties(
+                img=street_view_image,
+                verbose=verbose,
+            )
+            bmp.building_height = raw_height
+            bmp.footprint = height_estimation_parameters.building_polygon
+            bmp.camera_parameters = None
+
+            material_percentages = get_building_materials_segmentation(bmp)
+
+        except Exception:
+            street_view_image = None
+            material_percentages = None
 
     # 4. Corrected height from the model
     corrected_height = correction_model.predict(
@@ -242,12 +260,12 @@ def building_height_from_single_view(
     """
     from imageable._models.line_param_selection_model import LineParameterSelectionModel
 
-
     pictures_directory = Path(height_estimation_params.pictures_directory)
     cached_image_path = pictures_directory / "image.jpg"
     cached_metadata_path = pictures_directory / "metadata.json"
 
     used_cache = False
+    image = None
     if (
         not height_estimation_params.overwrite_images
         and cached_image_path.exists()
@@ -275,9 +293,23 @@ def building_height_from_single_view(
         except Exception:
             # If loading fails, fall back to the normal flow
             pass
+    
+    if(not used_cache and height_estimation_params.image is not None):
+        # We will get an observation point to fill camera parameters
+        observation_point_estimator = ObservationPointEstimator(height_estimation_params.building_polygon)
+        point,_,heading,_ = observation_point_estimator.get_observation_point()
+        camera_params = GSVCameraParameters(
+            longitude = point[0],
+            latitude = point[1],
+            heading = heading
+        )
+        #print("DEBUG: Image already given.")
+        image = height_estimation_params.image
+        used_cache = True
 
     # Image retrieval and camera parameter refinement
     if(not used_cache):
+        #print("DEBUG: Not used Cache")
         camera_parameters_refiner = CameraParametersRefiner(height_estimation_params.building_polygon)
         camera_parameters_refiner.MIN_FLOOR_RATIO = height_estimation_params.min_floor_ratio
         camera_parameters_refiner.MIN_SKY_RATIO = height_estimation_params.min_sky_ratio
@@ -342,7 +374,7 @@ def building_height_from_single_view(
     vector = vector.reshape(1,-1)
     try:
         line_score_threshold = line_parameter_selection_model.predict(vector)
-        print(f"Predicted line score threshold: {line_score_threshold}")
+        #print(f"Predicted line score threshold: {line_score_threshold}")
     except Exception:
         line_score_threshold = DEFAULT_LINE_SCORE_THRESHOLD
     

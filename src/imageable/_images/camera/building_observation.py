@@ -142,6 +142,8 @@ class ObservationPointEstimator:
         buffer = buffer_constant*pred_meters
 
         point = self.polygon.centroid
+        if(buffer > 10000):
+            buffer = 600
         try:
             g = ox.graph_from_point(
                 (point.y, point.x), dist=buffer, network_type="all", simplify=True

@@ -1,4 +1,6 @@
 from dataclasses import asdict, dataclass
+import numpy as np
+from PIL import Image
 
 MAX_DIMENSION = 640
 MIN_FOV = 10
