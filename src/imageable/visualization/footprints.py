@@ -123,34 +123,36 @@ def visualize_heights(
 def visualize_materials(
     geojson: dict,
     cmap = None,
-    material_column_names: List[str] = [
-        "mat_asphalt_pct",
-        "mat_concrete_pct",
-        "mat_metal_pct",
-        "mat_road_markiing_pct",
-        "mat_fabric_leather_pct",
-        "mat_glass_pct",
-        "mat_plaster_pct",
-        "mat_plastic_pct",
-        "mat_rubber_pct",
-        "mat_sand_pct",
-        "mat_gravel_pct",
-        "mat_ceramic_pct",
-        "mat_cobblestone_pct",
-        "mat_brick_pct",
-        "mat_grass_pct",
-        "mat_wood_pct",
-        "mat_leaf_pct",
-        "mat_water_pct",
-        "mat_human_body_pct",
-        "mat_sky_pct"
-    ],
+    material_dict_column: str = "material_percentages",
+    material_column_names: List[str] | None = None,
     elevation_scale: float = 1.0,
     height_column: str = "building_heights",
     save_html: str = None,
     map_style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
     view_state: pdk.ViewState = None,
     default_color: List[int] = [200, 200, 200], 
+    default_material_names: List[str] = [
+        "asphalt",
+        "concrete",
+        "metal",
+        "road_markiing",
+        "fabric_leather",
+        "glass",
+        "plaster",
+        "plastic",
+        "rubber",
+        "sand",
+        "gravel",
+        "ceramic",
+        "cobblestone",
+        "brick",
+        "grass",
+        "wood",
+        "leaf",
+        "water",
+        "human_body",
+        "sky",
+    ],
     default_material_colors: List[List[int]] = [
         [160, 160, 160],        # asphalt
         [220, 220, 220],    # concrete
@@ -177,15 +179,40 @@ def visualize_materials(
 ) -> pdk.Deck:
     #Open the data
     data = _load_geojson(geojson)
-    if(cmap is not None):
+    material_order = default_material_names
+    if cmap is not None:
         material_colors = []
-        n = len(material_column_names)
+        n = len(material_order)
         for i in range(0,n):
             r_f, g_f, b_f, *_ = cmap(i/max(n-1,1))
             material_colors.append([int(255 * r_f), int(255 * g_f), int(255 * b_f)])
     else:
         material_colors = default_material_colors
     
+    material_color_map = {name: color for name, color in zip(material_order, material_colors, strict=False)}
+
+    def _parse_material_dict(value):
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return None
+            return parsed if isinstance(parsed, dict) else None
+        return None
+
+    def _material_values_from_columns(props):
+        if material_column_names is None:
+            return None
+        values = {}
+        for col in material_column_names:
+            v = props.get(col, None)
+            if v is not None:
+                key = col.replace("mat_", "").replace("_pct", "")
+                values[key] = float(v)
+        return values or None
+
 
     #At this point we have the material colors, now we need to set some heights
     heights = []
@@ -205,18 +232,21 @@ def visualize_materials(
     for feature in data.get("features", []):
         props = feature.setdefault("properties", {})
         #We will obtain the dominant material
-        values = []
-        for col in material_column_names:
-            v = props.get(col, None)
-            values.append(float(v) if v is not None else 0.0)
-        
-        if all(v == 0.0 for v in values):
+        materials = _parse_material_dict(props.get(material_dict_column))
+        if materials is None:
+            materials = _material_values_from_columns(props)
+
+        if not materials or all(float(v or 0.0) == 0.0 for v in materials.values()):
             r, g, b = default_color
             props["dominant_material"] = None
         else:
-            idx = int(np.argmax(values))
-            r, g, b = material_colors[idx]
-            props["dominant_material"] = material_column_names[idx]
+            dominant_material = max(materials.items(), key=lambda item: float(item[1] or 0.0))[0]
+            props["dominant_material"] = dominant_material
+            color = material_color_map.get(dominant_material)
+            if color is None:
+                r, g, b = default_color
+            else:
+                r, g, b = color
         
         height = props.get(height_column)
         if height is None:
@@ -282,7 +312,6 @@ def _file_to_base64(path):
     with open(path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("utf-8")
     return "data:image/jpeg;base64," + encoded
-
 
 
 

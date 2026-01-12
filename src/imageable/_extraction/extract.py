@@ -31,6 +31,8 @@ def extract_building_properties(
     height_value: float | None = None,
     # Material segmentation (optional)
     material_percentages: dict[str, float] | None = None,
+    material_areas: dict[str, float] | None = None,
+    material_areas_units: str | None = None,
     verbose: bool = False,
 ) -> BuildingProperties:
     """
@@ -130,6 +132,13 @@ def extract_building_properties(
             print(f"  ✓ Materials: {len(material_percentages)} types")
     elif verbose:
         print("  ⊘ No materials provided")
+
+    if(material_areas is not None):
+        properties.update_material_areas(material_areas, material_areas_units)
+        if verbose:
+            print(f"  ✓ Material Areas: {len(material_areas)} types")
+    elif verbose:
+        print("  ⊘ No material areas provided")
 
     # ========== 4. Image Properties ==========
     if verbose:

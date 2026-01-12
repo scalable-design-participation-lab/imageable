@@ -9,6 +9,7 @@ Provides explicit input-specific functions following the pattern:
 
 from __future__ import annotations
 
+from importlib import metadata
 import json
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +22,7 @@ from imageable._extraction.building import BuildingProperties
 from imageable._extraction.extract import extract_building_properties
 from imageable._features.materials.building_materials import BuildingMaterialProperties, get_building_materials_segmentation 
 from imageable._images.image import CameraParameters
+import numpy as np
 # Type aliases
 OutputFormat = Literal["gdf", "geojson", "dict"]
 
@@ -266,8 +268,33 @@ def _extract_building_data_core(
         # Get image based on source
         image = None
         metadata = None
+        has_image = False
         if images_dir:
-            image = _load_local_image(images_dir, building_id)
+            image, metadata = _load_local_image_and_metadata(images_dir, building_id)
+            if image is None:
+                image = None
+                metadata = None
+                has_image = False
+            elif not _has_valid_imagery(metadata):
+                image = None
+                metadata = None
+                has_image = False
+            else:
+                try:
+                    img_std = float(np.nanstd(image))
+                    img_mean = float(np.nanmean(image))
+                    if (not np.isfinite(img_std)) or (not np.isfinite(img_mean)) or img_std < 1.0:
+                        image = None
+                        metadata = None
+                        has_image = False
+                    else:
+                        has_image = True
+                except Exception:
+                    image = None
+                    metadata = None
+                    has_image = False
+
+
         elif image_key:
             per_building_dir = None
             if pictures_directory is not None:
@@ -280,9 +307,44 @@ def _extract_building_data_core(
                 pictures_directory=per_building_dir,
             )
 
-        # Estimate height when API key is available
+            #print("DEBUG after fetch: image None?", image is None, "metadata None?", metadata is None)
+            #print("DEBUG metadata keys:", None if metadata is None else list(metadata.keys()))
+            #print("DEBUG has camera_parameters?", False if metadata is None else ("camera_parameters" in metadata and metadata["camera_parameters"] is not None))
+            #print("DEBUG: building", building_id, "images_dir exists?", per_building_dir.exists() if per_building_dir else None)
+            if image is None:
+                image = None
+                metadata = None
+                has_image = False
+            elif not _has_valid_imagery(metadata):
+                image = None
+                metadata = None
+                has_image = False
+            else:
+                try:
+                    img_std = float(np.nanstd(image))
+                    img_mean = float(np.nanmean(image))
+                    if (not np.isfinite(img_std)) or (not np.isfinite(img_mean)) or img_std < 1.0:
+                        image = None
+                        metadata = None
+                        has_image = False
+                    else:
+                        has_image = True
+                except Exception:
+                    image = None
+                    metadata = None
+                    has_image = False
+
+        # Estimate height when API key is available or local cache is present
         height = None
-        if image_key:
+        if images_dir and has_image:
+            height = _estimate_height(
+                polygon,
+                "",
+                verbose=verbose,
+                all_buildings=all_polygons,
+                image=image,
+            )
+        elif image_key and has_image:
             if verbose:
                 print(f"  Estimating height...")
             # This duplicates the image retrieval
@@ -301,14 +363,19 @@ def _extract_building_data_core(
         print(f"DEBUG: building_id={building_id}, height={height}")
         # Estimate the building materialpercentages
         materials_dictionary = None
-        if(not image is None):
-            camera_parameters_dictionary = metadata.get("camera_parameters",None)
+        areas_dict = None
+        units = None
+        percentages_dict = None
+        if(not image is None and has_image):
+            camera_parameters_dictionary = metadata.get("camera_parameters",None) if metadata is not None else None
             if(height is None or metadata is None or camera_parameters_dictionary is None):
                 building_material_properties = BuildingMaterialProperties(
                     img = image,
-                    verbose = verbose
+                    verbose = verbose,
+                    restrict_calculations_to_mask=False
                 )
                 materials_dictionary = get_building_materials_segmentation(building_material_properties)
+                percentages_dict = materials_dictionary
             else:
                 camera_parameters = CameraParameters(
                     longitude = camera_parameters_dictionary["longitude"],
@@ -325,10 +392,23 @@ def _extract_building_data_core(
                     camera_parameters = camera_parameters,
                     footprint = polygon,
                     verbose = verbose,
-                    building_height = height
+                    building_height = height,
+                    return_percentages_and_areas = True,
+                    restrict_calculations_to_mask=False
                 )
 
                 materials_dictionary = get_building_materials_segmentation(building_material_properties)
+                #Verify that we have a dictionary with percentages and areas
+                if(isinstance(materials_dictionary, dict) and not materials_dictionary.get("percentages") is None and not materials_dictionary.get("areas") is None):
+                    percentages_dict = materials_dictionary.get("percentages")
+                    areas_dict = materials_dictionary.get("areas")
+                    units = materials_dictionary.get("areas_units", "m2")
+                else:
+                    percentages_dict = materials_dictionary
+                    areas_dict = None
+                    units = None
+
+
         print(f"DEBUG: materials_dictionary = {materials_dictionary}")
         # Extract properties
         props = extract_building_properties(
@@ -340,14 +420,15 @@ def _extract_building_data_core(
             street_view_image=image,
             height_value=height,
             verbose=verbose,
-            material_percentages = materials_dictionary
+            material_percentages = percentages_dict,
+            material_areas = areas_dict,
+            material_areas_units = units
         )
 
         results.append(props)
 
     # Format output
     return _format_output(results, gdf, output_format)
-
 
 def _load_geojson_to_gdf(source: str | Path | dict) -> gpd.GeoDataFrame:
     """Load GeoJSON from path or dict into GeoDataFrame."""
@@ -371,23 +452,41 @@ def _load_geojson_to_gdf(source: str | Path | dict) -> gpd.GeoDataFrame:
 
 
 def _load_local_image(images_dir: Path, building_id: str):
-    """Load image from local directory by building ID."""
     import numpy as np
     from PIL import Image
 
-    # Try common extensions
-    for ext in (".jpg", ".jpeg", ".png"):
-        img_path = images_dir / f"{building_id}{ext}"
-        if img_path.exists():
-            return np.array(Image.open(img_path))
+    img_path = images_dir / building_id / "image.jpg"
+    if img_path.exists():
+        return np.array(Image.open(img_path))
 
-    return None  # No image found
+    return None
+
+
+def _load_local_image_and_metadata(images_dir: Path, building_id: str):
+    import numpy as np
+    from PIL import Image
+    import json
+
+    image = None
+    metadata = None
+
+    img_path = images_dir / building_id / "image.jpg"
+    print(img_path)
+    if img_path.exists():
+        image = np.array(Image.open(img_path))
+
+    metadata_path = images_dir / building_id / "metadata.json"
+    if metadata_path.exists():
+        with metadata_path.open("r") as f:
+            metadata = json.load(f)
+
+    return image, metadata
 
 
 def _fetch_street_view_image(polygon, api_key: str):
     """Fetch street view image for polygon."""
     from imageable._images.download import download_street_view_image
-    
+
     try:
         result = download_street_view_image(
             api_key=api_key,
@@ -398,6 +497,29 @@ def _fetch_street_view_image(polygon, api_key: str):
     except Exception:
         return None
 
+
+
+def _has_valid_imagery(metadata: dict | None) -> bool:
+    if metadata is None:
+        return False
+
+    lat = metadata.get("latitude")
+    lon = metadata.get("longitude")
+    pano = metadata.get("pano_id")
+
+    if lat is None or lon is None:
+        return False
+
+    # NaN check
+    if isinstance(lat, float) and np.isnan(lat):
+        return False
+    if isinstance(lon, float) and np.isnan(lon):
+        return False
+
+    if pano in (None, "", "N/A"):
+        return False
+
+    return True
 
 def _fetch_street_view_image_and_metadata(
     polygon,
@@ -410,7 +532,7 @@ def _fetch_street_view_image_and_metadata(
 
     refiner = CameraParametersRefiner(polygon)
 
-    camera_params, success, image = refiner.adjust_parameters(
+    camera_params, success, image, last_metadata_dict = refiner.adjust_parameters(
         api_key,
         pictures_directory=pictures_directory,
         save_reel=False,
@@ -420,11 +542,15 @@ def _fetch_street_view_image_and_metadata(
         polygon_buffer_constant=20,
     )
 
-    if not success or image is None:
+    if image is None:
         return None, None
 
-    metadata = {"camera_parameters": camera_params.to_dict()}
+    metadata = {} if last_metadata_dict is None else dict(last_metadata_dict)
 
+    if camera_params is not None:
+        metadata["camera_parameters"] = camera_params.to_dict()
+        metadata["adjustment_success"] = success
+        
     if pictures_directory is not None:
         pictures_directory = Path(pictures_directory)
         pictures_directory.mkdir(parents=True, exist_ok=True)

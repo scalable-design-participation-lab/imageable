@@ -314,7 +314,7 @@ def building_height_from_single_view(
         camera_parameters_refiner.MIN_FLOOR_RATIO = height_estimation_params.min_floor_ratio
         camera_parameters_refiner.MIN_SKY_RATIO = height_estimation_params.min_sky_ratio
 
-        camera_params, _success, image = camera_parameters_refiner.adjust_parameters(
+        camera_params, _success, image,_ = camera_parameters_refiner.adjust_parameters(
             height_estimation_params.gsv_api_key,
             pictures_directory=height_estimation_params.pictures_directory,
             save_reel=height_estimation_params.save_reel,

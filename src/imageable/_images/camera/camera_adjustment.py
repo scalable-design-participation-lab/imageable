@@ -5,6 +5,7 @@ from PIL import Image
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
+from imageable._images.camera import camera_parameters
 from imageable._images.camera.building_observation import ObservationPointEstimator
 from imageable._images.camera.camera_parameters import CameraParameters
 from imageable._images.download import _save_metadata, download_street_view_image
@@ -77,7 +78,6 @@ class CameraParametersRefiner:
             self.model = FloorSkyRatioCalculator()
             self.model.load_model()
 
-    # ruff : noqa: PLR0913
     def adjust_parameters(
         self,
         api_key: str,
@@ -87,7 +87,7 @@ class CameraParametersRefiner:
         save_reel: bool = False,
         overwrite_images: bool = False,
         confidence_detection: float = 0.5,
-    ) -> tuple[CameraParameters, bool, np.ndarray | None]:
+    ) -> tuple[CameraParameters, bool, np.ndarray | None, dict | None]:
         """
         Obtain CameraParameters for a view where the
         full façade of the buildings is visible by adjusting the pitch and fov
@@ -135,6 +135,7 @@ class CameraParametersRefiner:
 
         image = None
         progress = tqdm(total=max_number_of_images)
+        last_metadata_dict = None
 
         while not view_obtained:
             # Case where the maximum number of images has been taken.
@@ -149,12 +150,12 @@ class CameraParametersRefiner:
                     )
                     # We return the camera parameters
                     # and the image
-                    return camera_parameters, view_obtained, image
+                    last_metadata_dict = metadata.to_dict() if metadata is not None else None
+                    return camera_parameters, view_obtained, image, last_metadata_dict
 
                 # We just return the camera_parameters
                 # the user will have to fetch the image
-                return camera_parameters, view_obtained, None
-
+                return camera_parameters, view_obtained, None, last_metadata_dict
             # Fetch the image
             # If the user asked to save the reel save the image
             if pictures_directory is not None and save_reel:
@@ -166,6 +167,7 @@ class CameraParametersRefiner:
                 )
             else:
                 image, metadata = download_street_view_image(api_key, camera_parameters, None, overwrite_image=overwrite_images)
+            last_metadata_dict = metadata.to_dict() if metadata is not None else None
 
             if image is not None:
                 image_bgr = image[..., ::-1]
@@ -210,8 +212,8 @@ class CameraParametersRefiner:
             else:
                 # If the image is None, we return the camera parameters
                 # and None as the image
-                return camera_parameters, view_obtained, None
+                return camera_parameters, view_obtained, image, last_metadata_dict
 
         progress.close()
         # You get here if a view was obtained successfully
-        return camera_parameters, view_obtained, image
+        return camera_parameters, view_obtained, image, last_metadata_dict

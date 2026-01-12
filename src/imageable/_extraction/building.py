@@ -55,6 +55,8 @@ class BuildingProperties:
 
     # ========== Material Percentages ==========
     material_percentages: dict[str, float] = field(default_factory=dict)
+    material_areas: dict[str, float] = field(default_factory=dict)
+    material_areas_units: str = None
 
     # ========== Image: Color Features ==========
     average_red_channel_value: float = 0.0
@@ -263,6 +265,10 @@ class BuildingProperties:
             feature_dict = json.loads(json_str_or_path)
 
         return cls.from_dict(feature_dict)
+
+    def update_material_areas(self, material_dict: dict[str, float], units: str | None = None) -> None:
+        self.material_areas = material_dict.copy()
+        self.material_areas_units = units
 
     def get_feature_vector(self, exclude_materials: bool = False) -> np.ndarray:
         """
