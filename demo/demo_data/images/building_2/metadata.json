@@ -1,0 +1,22 @@
+{
+  "status": true,
+  "date": "2022-10",
+  "img_size": [
+    640,
+    640
+  ],
+  "source": "\u00a9 Google",
+  "latitude": 42.26565362297453,
+  "longitude": -71.09822953801472,
+  "pano_id": "raygarWrLyjXHoqaYl5YaA",
+  "camera_parameters": {
+    "longitude": -71.09822585487316,
+    "latitude": 42.265654791493695,
+    "fov": 90,
+    "heading": 331.0441567179098,
+    "pitch": 0,
+    "width": 640,
+    "height": 640
+  },
+  "adjustment_success": true
+}

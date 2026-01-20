@@ -1,0 +1,22 @@
+{
+  "status": true,
+  "date": "2022-07",
+  "img_size": [
+    640,
+    640
+  ],
+  "source": "\u00a9 Google",
+  "latitude": 42.26645635774847,
+  "longitude": -71.0986354685093,
+  "pano_id": "FXvWGRnJ8aFpy6SyLHvwtg",
+  "camera_parameters": {
+    "longitude": -71.09867025225401,
+    "latitude": 42.26642008747696,
+    "fov": 90,
+    "heading": 148.1514128843283,
+    "pitch": 0,
+    "width": 640,
+    "height": 640
+  },
+  "adjustment_success": true
+}
