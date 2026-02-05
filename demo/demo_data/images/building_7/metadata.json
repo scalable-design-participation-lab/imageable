@@ -1,0 +1,22 @@
+{
+  "status": true,
+  "date": "2011-11",
+  "img_size": [
+    640,
+    640
+  ],
+  "source": "\u00a9 Google",
+  "latitude": 42.26657047186842,
+  "longitude": -71.09851324511988,
+  "pano_id": "kb1_WmF4oxpmME4uw6aCGg",
+  "camera_parameters": {
+    "longitude": -71.09855625939902,
+    "latitude": 42.26652981306015,
+    "fov": 120,
+    "heading": 152.8063191951503,
+    "pitch": 0.0,
+    "width": 640,
+    "height": 640
+  },
+  "adjustment_success": false
+}

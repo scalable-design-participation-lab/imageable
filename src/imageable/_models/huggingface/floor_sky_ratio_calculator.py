@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
 from PIL import Image
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
@@ -17,18 +17,29 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
     """
 
     def __init__(
-        self, model_repo: str = "urilp4669/Facade_Segmentator", filename: str = "facades.pt", device: str | None = None
+        self, model_repo: str = "walup/facades_segmentation", filename: str = "weights.pt", device: str | None = None
     ) -> None:
         self.model_repo = model_repo
         self.filename = filename
         self.device = device or self._resolve_device()
         self.model = None
 
-    def load_model(self) -> None:
+    def load_model(
+            self,
+            force_download:bool = False) -> None:
         """Load the YOLO model from the Hugging Face repository."""
-        model_path = hf_hub_download(repo_id=self.model_repo, filename=self.filename)
-        self.model = YOLO(model_path)
-        self.model.to(self.device)
+        try:
+            model_path = try_to_load_from_cache(repo_id=self.model_repo, filename=self.filename)
+            if(model_path):
+                self.model = YOLO(model_path)
+                self.model.to(self.device)
+            
+            model_path = hf_hub_download(repo_id = self.model_repo, filename = self.filename)
+            self.model = YOLO(model_path)
+            self.model.to(self.device)
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            self.model = None
 
     def is_loaded(self) -> bool:
         """Check if the model is loaded."""

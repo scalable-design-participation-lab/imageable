@@ -63,7 +63,7 @@ class ObservationPointEstimator:
         # Get the midpoints of the polygon faces
         midpoints = get_polygon_edge_midpoints(self.polygon)
         # Get the surrounding street network
-        street_network = self._get_surrounding_street_network(buffer_constant=buffer_constant)
+        street_network = self._get_surrounding_street_network()
         if street_network is None:
             return None, None, None, np.inf
 
@@ -96,7 +96,7 @@ class ObservationPointEstimator:
 
     def _get_surrounding_street_network(
         self,
-        buffer_constant: float = 3,
+        buffer_constant: float = 20,
     ) -> gpd.GeoDataFrame:
         """
         Get the surrounding street network of the polygon using a buffer.
@@ -145,6 +145,7 @@ class ObservationPointEstimator:
         if(buffer > 10000):
             buffer = 600
         try:
+            print(f"DEBUG buffer: {buffer}")
             g = ox.graph_from_point(
                 (point.y, point.x), dist=buffer, network_type="all", simplify=True
             )
