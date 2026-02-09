@@ -239,7 +239,7 @@ def _extract_building_data_core(
     Either image_key OR images_dir should be provided, not both.
     Height estimation runs automatically when image_key is provided.
     """
-    print(f"DEBUG: image_key={image_key!r}, bool={bool(image_key)}")
+
     # Prepare IDs
     if id_column and id_column in gdf.columns:
         ids = gdf[id_column].astype(str).tolist()
@@ -347,18 +347,8 @@ def _extract_building_data_core(
         elif image_key and has_image:
             if verbose:
                 print(f"  Estimating height...")
-            # This duplicates the image retrieval
-            # What we can do is have a way were you can provide it
-            if(image is None):
-                height = _estimate_height(polygon, image_key, verbose=verbose, all_buildings=all_polygons)
-            else:
-                #print(f"DEBUG: Estimating height with image.")
-                height = _estimate_height(
-                    polygon,
-                    image_key,
-                    verbose = verbose,
-                    all_buildings = all_polygons,
-                    image = image)
+            height = _estimate_height(polygon, image_key, verbose=verbose)
+
 
         print(f"DEBUG: building_id={building_id}, height={height}")
         # Estimate the building materialpercentages

@@ -34,7 +34,7 @@ class ObservationPointEstimator:
         self.polygon: Polygon = polygon
 
     def get_observation_point(
-        self, buffer_constant: float = 2.5e5, true_north: bool = True
+        self, buffer_constant: float = 50, true_north: bool = True
     ) -> tuple[tuple[float, float], tuple[float, float], float, float]:
         """
         Get the closest point at which a face of the building can be observed

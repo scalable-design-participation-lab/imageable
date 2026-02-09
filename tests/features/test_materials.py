@@ -1,5 +1,6 @@
 
 import numpy as np
+import pytest
 from shapely import Polygon
 
 from imageable._features.materials.building_materials import (
@@ -55,6 +56,7 @@ def test_building_material_properties():
     assert isinstance(building_material_props.footprint, Polygon)
 
 
+@pytest.mark.skip(reason="Requires RMSNet model weights that are not available in CI")
 def test_building_material_percentages():
     img = _get_mock_building_image()
 
@@ -75,8 +77,6 @@ def test_building_material_percentages():
         camera_parameters = camera_parameters,
         building_height = building_height,
         footprint = None,
-        backbone_model_path = "/Users/legariapena.j/Library/CloudStorage/GoogleDrive-legariapena.j@husky.neu.edu/My Drive/Phd_Northeastern/Semester_1/RA/imageable/notebooks/models_for_notebooks/mit_b2.pth",
-        rmsnetweights_path = "/Users/legariapena.j/Library/CloudStorage/GoogleDrive-legariapena.j@husky.neu.edu/My Drive/Phd_Northeastern/Semester_1/RA/imageable/notebooks/models_for_notebooks/rmsnet_split1.pth"
     )
 
     material_percentages = get_building_materials_segmentation(building_material_props)
@@ -88,6 +88,7 @@ def test_building_material_percentages():
     print("Total material percentage:", total_percentage)
     assert np.isclose(total_percentage, 1.0)
 
+@pytest.mark.skip(reason="Requires RMSNet model weights that are not available in CI")
 def test_building_material_areas():
     img = _get_mock_building_image()
     #Define a very simple polygon for the building footprint
@@ -110,8 +111,6 @@ def test_building_material_areas():
         camera_parameters = camera_parameters,
         building_height = building_height,
         footprint = footprint,
-        backbone_model_path = "/Users/legariapena.j/Library/CloudStorage/GoogleDrive-legariapena.j@husky.neu.edu/My Drive/Phd_Northeastern/Semester_1/RA/imageable/notebooks/models_for_notebooks/mit_b2.pth",
-        rmsnetweights_path = "/Users/legariapena.j/Library/CloudStorage/GoogleDrive-legariapena.j@husky.neu.edu/My Drive/Phd_Northeastern/Semester_1/RA/imageable/notebooks/models_for_notebooks/rmsnet_split1.pth"
     )
 
     material_areas = get_building_materials_segmentation(building_material_props)
