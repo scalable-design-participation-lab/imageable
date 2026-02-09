@@ -158,7 +158,7 @@ def fetch_image(
     # Check if the image already exists and should not be overwritten
     if save_path is not None and not overwrite_image and Path(save_path).exists():
         try:
-            print("Recycling image")
+            # Recycling existing image
             img = np.array(Image.open(save_path))
             metadata_path = Path(save_path).parent / "metadata.json"
             with metadata_path.open("r") as f:
@@ -175,7 +175,7 @@ def fetch_image(
             )
             return img, img_metadata
         except Exception:
-            print("Failed to load existing image or metadata. Fetching new image.")
+            # Failed to load existing image or metadata, fetching new image
             # just continue; do NOT return
             pass
     # Base URL for the Google Street View API

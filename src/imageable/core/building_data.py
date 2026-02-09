@@ -218,7 +218,7 @@ def _extract_building_data_core(
     Either image_key OR images_dir should be provided, not both.
     Height estimation runs automatically when image_key is provided.
     """
-    print(f"DEBUG: image_key={image_key!r}, bool={bool(image_key)}")
+
     # Prepare IDs
     if id_column and id_column in gdf.columns:
         ids = gdf[id_column].astype(str).tolist()
@@ -251,9 +251,7 @@ def _extract_building_data_core(
             if verbose:
                 print(f"  Estimating height...")
             height = _estimate_height(polygon, image_key, verbose=verbose)
-        print(
-            f"DEBUG: building_id={building_id}, height={height}"
-        )
+
 
         # Extract properties
         props = extract_building_properties(
@@ -332,10 +330,7 @@ def _estimate_height(polygon, api_key: str, verbose: bool = False) -> float | No
         HeightEstimationParameters,
         building_height_from_single_view,
     )
-    print(f"DEBUG: Estimating height for polygon with API key={api_key}")
-    print(f"DEBUG: polygon={polygon.wkt}")
-    print(f"DEBUG: verbose={verbose}")
-    
+
     try:
         params = HeightEstimationParameters(
             gsv_api_key=api_key,

@@ -229,30 +229,30 @@ class BuildingProperties:
         return json_str
 
     @classmethod
-    def from_dict(cls, feature_dict: dict[str, Any]) -> "BuildingFeatures":
+    def from_dict(cls, feature_dict: dict[str, Any]) -> "BuildingProperties":
         """
-        Create BuildingFeatures from a dictionary.
+        Create BuildingProperties from a dictionary.
 
         Args:
             feature_dict: Dictionary containing features
 
         Returns
         -------
-            BuildingFeatures instance
+            BuildingProperties instance
         """
         return cls(**feature_dict)
 
     @classmethod
-    def from_json(cls, json_str_or_path: str) -> "BuildingFeatures":
+    def from_json(cls, json_str_or_path: str) -> "BuildingProperties":
         """
-        Create BuildingFeatures from JSON string or file.
+        Create BuildingProperties from JSON string or file.
 
         Args:
             json_str_or_path: JSON string or path to JSON file
 
         Returns
         -------
-            BuildingFeatures instance
+            BuildingProperties instance
         """
         # Try to read as file first
         try:
