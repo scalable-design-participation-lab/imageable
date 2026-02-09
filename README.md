@@ -267,10 +267,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Authors
 
-- Khoi Ngo ([@khoitran](https://github.com/khoitran)) - ngo.kho@northeastern.edu
+- Khoi Ngo ([Khoi Ngo](https://github.com/billnqk)) - ngo.kho@northeastern.edu
 - Uriel Legaria
 - Carlos Sandoval Olascoaga
 
-Faculty Mentor: Dr. Alpha Yacob Arsano
 
 Developed at the [Scalable Design Participation Lab](https://github.com/scalable-design-participation-lab), Northeastern University.
