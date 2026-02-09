@@ -497,7 +497,7 @@ def corrected_height_from_single_view(
 
             material_percentages = get_building_materials_segmentation(bmp)
 
-    else:
+    except Exception:
         #print("WAS NONE")
         pictures_dir = Path(height_estimation_parameters.pictures_directory)
         try:
