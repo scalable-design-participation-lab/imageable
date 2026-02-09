@@ -110,6 +110,7 @@ class BuildingMaterialProperties:
     shift_building_segmentation_labels: bool = True
     min_restricted_fov_deg: float = 5
     pixel_density_threshold_for_cutting_building: float = 0.15
+    return_percentages_and_areas: bool = True
 
 
 # ruff: noqa: PLR0911, PLR0912, PLR0915
@@ -126,8 +127,14 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
     Returns
     -------
     materials
-        A dictionary with material class percentages or areas
-        depending on the specified parameter values.
+        A dictionary with material class percentages, areas or both,
+        depending on the specified parameter values. In the case that both
+        percentages and areas are requested, the form of the dictionary is:
+        {
+        "percentages":{"material_label_1": percentage_1, "material_label_2": percentage_2, ...},
+        "areas":{"material_label_1": area_1, "material_label_2": area_2, ...}
+        "areas_units": "m2" | "ft2" | "mi2"
+        }
     """
     # Get the percentages
     wrapper = RMSNetSegmentationWrapper(
@@ -143,7 +150,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
     logits = wrapper.predict(properties.img)
     out = wrapper.postprocess(logits)
 
-    percentages = dict.fromkeys(range(properties.num_classes), 0)
+    fractions = dict.fromkeys(range(properties.num_classes), 0)
     mask = out["mask"]
     masked_img = None
     if properties.restrict_calculations_to_mask:
@@ -175,7 +182,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         and properties.footprint is not None
         and properties.camera_parameters is not None
     ):
-        percentages: dict[int, float] = dict.fromkeys(range(properties.num_classes), 0.0)
+        fractions = dict.fromkeys(range(properties.num_classes), 0.0)
 
         # Get the observation point
         camera_properties = properties.camera_parameters
@@ -245,7 +252,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         unique, counts = np.unique(mask, return_counts=True)
 
     for u, c in zip(unique, counts, strict=False):
-        percentages[int(u)] = float(c) / float(total_pixels)
+        fractions[int(u)] = float(c) / float(total_pixels)
 
     # If footprint and height are provided we will calculate the material areas in
     # square meters.
@@ -299,6 +306,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         plt.show()
 
     physical_units = False
+    area_multiplier_m2 = None
     if (
         properties.footprint is not None
         and properties.building_height is not None
@@ -338,36 +346,54 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
             building_side_area_m2 = line_length_meters * properties.building_height
             # Now we can calculate the area per material
             physical_units = True
-            for k in percentages:
-                percentages[k] = percentages[k] * building_side_area_m2
+            area_multiplier_m2 = building_side_area_m2
+    if properties.return_percentages_and_areas:
+        labels = get_material_labels()
+        percentages_out = {labels[k]: v for k, v in fractions.items()}
+        areas_out = None
+        areas_units = None
+        if physical_units:
+            areas_units = properties.units if properties.units in ["m2", "ft2", "mi2"] else "m2"
+            areas = {k: v * area_multiplier_m2 for k, v in fractions.items()}
+            if areas_units == "ft2":
+                for k in areas:
+                    areas[k] = areas[k] * AreaConversionFactors.SQM_TO_SQFT.value
+            elif areas_units == "mi2":
+                for k in areas:
+                    areas[k] = areas[k] * AreaConversionFactors.SQM_TO_SQMI.value
+            areas_out = {labels[k]: v for k, v in areas.items()}
+        return {
+            "percentages": percentages_out,
+            "areas": areas_out,
+            "areas_units": areas_units,
+        }
 
     if physical_units and properties.units in ["m2", "ft2", "mi2"]:
         if properties.units == "m2":
             labels = get_material_labels()
-            return {labels[k]: v for k, v in percentages.items()}
+            return {labels[k]: v*area_multiplier_m2 for k, v in fractions.items()}
         if properties.units == "ft2":
-            for k in percentages:
-                percentages[k] = percentages[k] * AreaConversionFactors.SQM_TO_SQFT.value
+            for k in fractions:
+                fractions[k] = fractions[k] * area_multiplier_m2 * AreaConversionFactors.SQM_TO_SQFT.value
             labels = get_material_labels()
-            return {labels[k]: v for k, v in percentages.items()}
+            return {labels[k]: v for k, v in fractions.items()}
         if properties.units == "mi2":
-            for k in percentages:
-                percentages[k] = percentages[k] * AreaConversionFactors.SQM_TO_SQMI.value
+            for k in fractions:
+                fractions[k] = fractions[k] * area_multiplier_m2 * AreaConversionFactors.SQM_TO_SQMI.value
             labels = get_material_labels()
-            return {labels[k]: v for k, v in percentages.items()}
+            return {labels[k]: v for k, v in fractions.items()}
 
     elif physical_units:
         logging.warning("Physical units not identified. Defaulting to square meters.")
         labels = get_material_labels()
-        return {labels[k]: v for k, v in percentages.items()}
-
+        return {labels[k]: v*area_multiplier_m2 for k, v in fractions.items()}
     elif properties.units == "%":
         labels = get_material_labels()
-        return {labels[k]: v for k, v in percentages.items()}
+        return {labels[k]: v for k, v in fractions.items()}
     elif properties.units == "px":
-        for k in list(percentages.keys()):
-            percentages[k] = int(percentages[k] * total_pixels)
+        for k in list(fractions.keys()):
+            fractions[k] = int(fractions[k] * total_pixels)
         labels = get_material_labels()
-        return {labels[k]: v for k, v in percentages.items()}
+        return {labels[k]: v for k, v in fractions.items()}
     labels = get_material_labels()
-    return {labels[k]: v for k, v in percentages.items()}
+    return {labels[k]: v for k, v in fractions.items()}

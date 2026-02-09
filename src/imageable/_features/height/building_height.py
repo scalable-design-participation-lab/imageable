@@ -497,9 +497,42 @@ def corrected_height_from_single_view(
 
             material_percentages = get_building_materials_segmentation(bmp)
 
-    except Exception:
-        street_view_image = None
-        material_percentages = None
+    else:
+        #print("WAS NONE")
+        pictures_dir = Path(height_estimation_parameters.pictures_directory)
+        try:
+            image_path = pictures_dir / "image.jpg"
+            metadata_path = pictures_dir / "metadata.json"
+
+            street_view_image = np.array(Image.open(image_path))
+
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+
+            camera_parameters_dict = metadata["camera_parameters"]
+            camera_parameters = GSVCameraParameters(
+                longitude=camera_parameters_dict["longitude"],
+                latitude=camera_parameters_dict["latitude"],
+            )
+            camera_parameters.fov = camera_parameters_dict["fov"]
+            camera_parameters.heading = camera_parameters_dict["heading"]
+            camera_parameters.pitch = camera_parameters_dict["pitch"]
+            camera_parameters.height = camera_parameters_dict["height"]
+            camera_parameters.width = camera_parameters_dict["width"]
+
+            bmp = BuildingMaterialProperties(
+                img=street_view_image,
+                verbose=verbose,
+            )
+            bmp.building_height = raw_height
+            bmp.footprint = height_estimation_parameters.building_polygon
+            bmp.camera_parameters = None
+
+            material_percentages = get_building_materials_segmentation(bmp)
+
+        except Exception:
+            street_view_image = None
+            material_percentages = None
 
     # Apply correction model
     corrected_height = correction_model.predict(

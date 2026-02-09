@@ -150,15 +150,15 @@ class HeightCorrectionModel(BaseModelWrapper):
 
         # Build raw feature vector in the same order as training
         x_raw = np.array([[properties_dictionary[f] for f in self.FEATURES_USED]])
-        print(x_raw)
+        #print(x_raw)
 
         # Scale using the SAME scaler used when you created X_scaled in training
         x_scaled = self.scaler.transform(x_raw)
-        print(x_scaled)
+        #print(x_scaled)
 
         # Predict the corrected height (ensemble was trained on scaled features)
         corrected_height = self.pretrained.predict(x_scaled)[0]
-        print(self.pretrained.cluster_centers_)
+        #print(self.pretrained.cluster_centers_)
         return corrected_height
 
     
