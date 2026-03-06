@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -15,8 +16,9 @@ from imageable._models.huggingface.floor_sky_ratio_calculator import FloorSkyRat
 class CameraParametersEstimator:
     """Apply observation point estimation to obtain initial camera parameters."""
 
-    def __init__(self, polygon: Polygon) -> None:
+    def __init__(self, polygon: Polygon, street_network: Any | None = None) -> None:
         self.polygon = polygon
+        self.street_network = street_network
         self.image_width = 640
         self.image_height = 640
 
@@ -35,7 +37,7 @@ class CameraParametersEstimator:
         camera_parameters
             The estimated initial camera parameters.
         """
-        observation_point_estimator = ObservationPointEstimator(self.polygon)
+        observation_point_estimator = ObservationPointEstimator(self.polygon, street_network=self.street_network)
         observation_point, _, heading, _ = observation_point_estimator.get_observation_point(
             buffer_constant=buffer_constant, true_north=True
         )
@@ -69,8 +71,14 @@ class CameraParametersRefiner:
     MIN_FLOOR_RATIO = 0.00001
     MIN_SKY_RATIO = 0.1
 
-    def __init__(self, polygon: Polygon, model: FloorSkyRatioCalculator = None) -> None:
+    def __init__(
+        self,
+        polygon: Polygon,
+        model: FloorSkyRatioCalculator = None,
+        street_network: Any | None = None,
+    ) -> None:
         self.polygon = polygon
+        self.street_network = street_network
         self.image_width = 640
         self.image_height = 640
 
@@ -124,7 +132,7 @@ class CameraParametersRefiner:
             the image by themselves.
         """
         # Estimate the initial parameters
-        params_estimator = CameraParametersEstimator(self.polygon)
+        params_estimator = CameraParametersEstimator(self.polygon, street_network=self.street_network)
         camera_parameters = params_estimator.estimate_first_parameters(buffer_constant=polygon_buffer_constant)
         # Now we will adjust the parameters to ensure the full façade is visible
 

@@ -32,6 +32,7 @@ class TestImageAcquisitionConfig:
         assert config.min_sky_ratio == 0.1
         assert config.max_refinement_iterations == 5
         assert config.confidence_threshold == 0.1
+        assert config.street_network is None
 
     def test_custom_values(self):
         """Test custom configuration values."""
@@ -206,6 +207,23 @@ class TestAcquireBuildingImage:
         
         assert result.is_valid is False
         assert result.success is False
+
+    def test_preloaded_street_network_passed_to_refiner(self, sample_polygon):
+        """Test that preloaded street network is passed to refiner constructor."""
+        with patch("imageable._images.acquisition.CameraParametersRefiner") as mock_refiner_cls:
+            mock_refiner = Mock()
+            mock_refiner_cls.return_value = mock_refiner
+            mock_refiner.adjust_parameters.return_value = (
+                CameraParameters(longitude=-71.05, latitude=42.36),
+                True,
+                np.zeros((10, 10, 3), dtype=np.uint8),
+            )
+            network = object()
+            config = ImageAcquisitionConfig(api_key="test_key", street_network=network)
+
+            acquire_building_image(sample_polygon, config)
+
+            mock_refiner_cls.assert_called_once_with(sample_polygon, street_network=network)
 
 
 class TestLoadFromCache:

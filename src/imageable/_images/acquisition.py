@@ -49,6 +49,9 @@ class ImageAcquisitionConfig:
         Confidence threshold for sky/floor detection model.
     polygon_buffer_constant
         Buffer constant for finding observation points around the building.
+    street_network
+        Optional preloaded street network (city-scale graph or edge
+        GeoDataFrame) used to avoid repeated OSM queries.
     """
 
     api_key: str
@@ -60,6 +63,7 @@ class ImageAcquisitionConfig:
     max_refinement_iterations: int = 5
     confidence_threshold: float = 0.1
     polygon_buffer_constant: float = 20
+    street_network: Any | None = None
 
 
 @dataclass
@@ -142,11 +146,11 @@ def acquire_building_image(
             return cached_result
 
     # Perform acquisition with refinement
-    refiner = CameraParametersRefiner(polygon)
+    refiner = CameraParametersRefiner(polygon, street_network=config.street_network)
     refiner.MIN_FLOOR_RATIO = config.min_floor_ratio
     refiner.MIN_SKY_RATIO = config.min_sky_ratio
 
-    camera_params, refinement_success, image, _last_metadata = refiner.adjust_parameters(
+    adjust_result = refiner.adjust_parameters(
         api_key=config.api_key,
         max_number_of_images=config.max_refinement_iterations,
         polygon_buffer_constant=config.polygon_buffer_constant,
@@ -155,6 +159,10 @@ def acquire_building_image(
         overwrite_images=config.overwrite,
         confidence_detection=config.confidence_threshold,
     )
+    if len(adjust_result) == 4:
+        camera_params, refinement_success, image, _last_metadata = adjust_result
+    else:
+        camera_params, refinement_success, image = adjust_result
 
     metadata = {
         "refinement_iterations": config.max_refinement_iterations,

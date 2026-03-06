@@ -1,6 +1,7 @@
 import logging
 
 import geopandas as gpd
+import networkx as nx
 import numpy as np
 import osmnx as ox
 from shapely.geometry import Polygon
@@ -22,7 +23,11 @@ class ObservationPointEstimator:
     parameters for the building view.
     """
 
-    def __init__(self, polygon: Polygon) -> None:
+    def __init__(
+        self,
+        polygon: Polygon,
+        street_network: nx.MultiDiGraph | gpd.GeoDataFrame | None = None,
+    ) -> None:
         """
         Initialize the ObservationPointEstimator.
 
@@ -30,8 +35,13 @@ class ObservationPointEstimator:
         ----------
         polygon
             A shapely Polygon object.
+        street_network
+            Optional preloaded city-scale street network. If provided, this
+            class will clip it locally using the same bbox geometry that
+            OSMnx `graph_from_point(..., dist_type="bbox")` uses.
         """
         self.polygon: Polygon = polygon
+        self.street_network: nx.MultiDiGraph | gpd.GeoDataFrame | None = street_network
 
     def get_observation_point(
         self, buffer_constant: float = 50, true_north: bool = True
@@ -63,7 +73,7 @@ class ObservationPointEstimator:
         # Get the midpoints of the polygon faces
         midpoints = get_polygon_edge_midpoints(self.polygon)
         # Get the surrounding street network
-        street_network = self._get_surrounding_street_network()
+        street_network = self._get_surrounding_street_network(buffer_constant=buffer_constant)
         if street_network is None:
             return None, None, None, np.inf
 
@@ -113,9 +123,9 @@ class ObservationPointEstimator:
             A GeoDataFrame containing the street network within the buffer.
         """
         # We will estimate a buffer using the polygon area
-        id = 0
+        building_id = 0
         properties = extract_building_properties(
-            id,
+            building_id,
             self.polygon
         )
         feature_vector = [
@@ -137,24 +147,66 @@ class ObservationPointEstimator:
             target_mode="log1p"
         )
 
-        X_input = np.asarray(feature_vector, dtype=np.float32).reshape(1, -1)
-        pred_meters = float(distance_wrapper.predict(X_input)[0])
-        buffer = buffer_constant*pred_meters
+        x_input = np.asarray(feature_vector, dtype=np.float32).reshape(1, -1)
+        pred_meters = float(distance_wrapper.predict(x_input)[0])
+        buffer = buffer_constant * pred_meters
 
         point = self.polygon.centroid
-        if(buffer > 10000):
+        if buffer > 10000:
             buffer = 600
         try:
-            print(f"DEBUG buffer: {buffer}")
-            g = ox.graph_from_point(
-                (point.y, point.x), dist=buffer, network_type="all", simplify=True
-            )
-            # let's get the GDF
+            if self.street_network is not None:
+                return self._clip_provided_street_network((point.y, point.x), buffer)
+
+            g = ox.graph_from_point((point.y, point.x), dist=buffer, network_type="all", simplify=True)
             return ox.graph_to_gdfs(g, nodes=False, edges=True)
 
         except Exception:
             logging.exception("Error obtaining street network")
             return None
+
+    def _clip_provided_street_network(
+        self,
+        center_point: tuple[float, float],
+        dist_meters: float,
+    ) -> gpd.GeoDataFrame | None:
+        """
+        Clip a preloaded street network to match OSMnx bbox-from-point behavior.
+        """
+        bbox = ox.utils_geo.bbox_from_point(center_point, dist_meters)
+        bbox_polygon = ox.utils_geo.bbox_to_poly(bbox)
+
+        if isinstance(self.street_network, nx.MultiDiGraph):
+            clipped = ox.truncate.truncate_graph_polygon(self.street_network, bbox_polygon, truncate_by_edge=False)
+            if len(clipped) == 0 or len(clipped.edges) == 0:
+                return None
+
+            clipped = ox.truncate.largest_component(clipped, strongly=False)
+            if len(clipped) == 0 or len(clipped.edges) == 0:
+                return None
+
+            return ox.graph_to_gdfs(clipped, nodes=False, edges=True)
+
+        if isinstance(self.street_network, gpd.GeoDataFrame):
+            clip_polygon = bbox_polygon
+            if self.street_network.crs is not None:
+                clip_polygon = gpd.GeoSeries([bbox_polygon], crs="EPSG:4326").to_crs(self.street_network.crs).iloc[0]
+
+            try:
+                candidate_idxs = list(self.street_network.sindex.intersection(clip_polygon.bounds))
+                candidates = self.street_network.iloc[candidate_idxs]
+            except Exception:
+                candidates = self.street_network
+            clipped = candidates[candidates.intersects(clip_polygon)]
+            if clipped.empty:
+                return None
+            return clipped.copy()
+
+        msg = (
+            "street_network must be a networkx.MultiDiGraph or "
+            "a geopandas.GeoDataFrame."
+        )
+        raise TypeError(msg)
 
 
     def _get_surrounding_street_network_with_distance(
@@ -187,5 +239,3 @@ class ObservationPointEstimator:
         except Exception:
             logging.exception("Error obtaining street network")
             return None
-
-

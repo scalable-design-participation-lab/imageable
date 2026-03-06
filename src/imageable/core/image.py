@@ -46,6 +46,7 @@ def get_image(
     min_sky_ratio: float = 0.1,
     max_refinement_iterations: int = 5,
     overwrite: bool = True,
+    street_network: Any | None = None,
 ) -> tuple[NDArray, CameraParameters] | tuple[NDArray, CameraParameters, dict[str, Any]] | NDArray:
     """
     Get street view image for a building footprint.
@@ -74,6 +75,11 @@ def get_image(
         Maximum number of images to fetch during refinement.
     overwrite : bool, default=True
         Whether to overwrite existing cached images.
+    street_network : optional
+        Optional preloaded street network (city-scale graph or edge
+        GeoDataFrame). If provided, image acquisition reuses this network and
+        locally clips around each building instead of querying OSMnx for each
+        building.
 
     Returns
     -------
@@ -132,6 +138,7 @@ def get_image(
         min_floor_ratio=min_floor_ratio if refine_camera else 0.0,
         min_sky_ratio=min_sky_ratio if refine_camera else 0.0,
         max_refinement_iterations=max_refinement_iterations if refine_camera else 1,
+        street_network=street_network,
     )
 
     result = acquire_building_image(building_footprint, config)
