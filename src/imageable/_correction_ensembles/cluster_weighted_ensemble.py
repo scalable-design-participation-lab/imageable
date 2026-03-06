@@ -63,12 +63,14 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         kmeans_kwargs: Optional[Dict[str, Any]] = None,
         distance_eps: float = 1e-12,
         feature_indices_used_for_clustering: Optional[List[int]] = None,
-        scale: bool = False,               
+        scale: bool = False,      
+        decay_constant: float = 1.0,      
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
         self.kmeans_kwargs = {} if kmeans_kwargs is None else kmeans_kwargs
         self.distance_eps = distance_eps
+        self.decay_constant = decay_constant
         self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
         self.scale = scale                 
         self.scaler = StandardScaler() if scale else None    
@@ -128,7 +130,9 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
     def is_loaded(self) -> bool:
         return self._is_loaded
 
-    def _compute_weights(self, X: np.ndarray) -> np.ndarray:
+    def _compute_weights(
+            self, 
+            X: np.ndarray,) -> np.ndarray:
         """
         Compute soft assignment weights for each sample to each cluster,
         based on distance to cluster centers.
@@ -138,7 +142,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         """
         if self._cluster_centers is None:
             raise RuntimeError("Model not loaded: no cluster centers.")
-
+        
         X = np.asarray(X)
 
         if self.feature_indices_used_for_clustering is not None:
@@ -148,7 +152,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
 
         dists = pairwise_distances(X_cluster, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
-        w = np.exp(-dists)
+        w = np.exp(-self.decay_constant * dists)
         w = w / np.sum(w, axis=1, keepdims=True)
         return w
 
@@ -248,6 +252,7 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         scaler: Optional[StandardScaler] = None,
         distance_eps: float = 1e-12,
         feature_indices_used_for_clustering: Optional[List[int]] = None,
+        decay_constant:float = 2.0
     ) -> None:
 
         self.n_clusters = n_clusters
@@ -263,6 +268,8 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
 
         # indices (in attrs_name order) used for clustering / distances
         self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
+
+        self.decay_constant = decay_constant
 
     def load_model(
         self,
@@ -383,7 +390,7 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         dists = pairwise_distances(X_for_weights, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
 
-        w = np.exp(-dists)
+        w = np.exp(-self.decay_constant * dists)
         w = w / np.sum(w, axis=1, keepdims=True)
         return w
 

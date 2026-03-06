@@ -146,7 +146,7 @@ def acquire_building_image(
     refiner.MIN_FLOOR_RATIO = config.min_floor_ratio
     refiner.MIN_SKY_RATIO = config.min_sky_ratio
 
-    camera_params, refinement_success, image = refiner.adjust_parameters(
+    camera_params, refinement_success, image, _last_metadata = refiner.adjust_parameters(
         api_key=config.api_key,
         max_number_of_images=config.max_refinement_iterations,
         polygon_buffer_constant=config.polygon_buffer_constant,
@@ -162,6 +162,21 @@ def acquire_building_image(
         "min_floor_ratio": config.min_floor_ratio,
         "min_sky_ratio": config.min_sky_ratio,
     }
+
+    # Persist refinement success into saved metadata.json if available
+    if save_dir is not None:
+        metadata_path = Path(save_dir) / "metadata.json"
+        try:
+            if metadata_path.exists():
+                with metadata_path.open("r") as f:
+                    stored = json.load(f)
+            else:
+                stored = {}
+            stored["adjustment_success"] = refinement_success
+            with metadata_path.open("w") as f:
+                json.dump(stored, f, indent=2)
+        except Exception:
+            pass
 
     return ImageAcquisitionResult(
         image=image,

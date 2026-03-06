@@ -165,6 +165,8 @@ class HeightEstimationParameters:
     use_detected_vpt_only: bool = False
     shift_segmentation_labels: bool = True
     all_buildings: list[Polygon] = None
+    image: NDArray[np.uint8] | None = None
+    camera_parameters: GSVCameraParameters | None = None
 
     def to_acquisition_config(self) -> ImageAcquisitionConfig:
         """Convert to ImageAcquisitionConfig."""
@@ -380,8 +382,10 @@ def _predict_line_score_threshold(
         )
 
         props_dict = props.to_dict()
-        features = line_model.corr_model.FEATURES_USED
-        vector = np.array([[props_dict[f] for f in features]])
+        vector = line_model.corr_model.build_feature_vector(
+            props_dict,
+            n_features=getattr(line_model.corr_model.scaler, "n_features_in_", None),
+        )
         return line_model.predict(vector.reshape(1, -1))
 
     except Exception:
@@ -408,6 +412,32 @@ def building_height_from_single_view(
     height
         Estimated building height in meters, or None if estimation failed.
     """
+    # If image is provided, skip acquisition and estimate directly.
+    if height_estimation_params.image is not None:
+        image = height_estimation_params.image
+        camera_params = height_estimation_params.camera_parameters
+        if camera_params is None:
+            h, w = image.shape[:2]
+            centroid = height_estimation_params.building_polygon.centroid
+            camera_params = GSVCameraParameters(
+                longitude=float(centroid.x),
+                latitude=float(centroid.y),
+                fov=90,
+                heading=0,
+                pitch=0,
+                width=w,
+                height=h,
+            )
+
+        est_config = height_estimation_params.to_estimation_config()
+        return estimate_height_from_image(
+            image=image,
+            camera_params=camera_params,
+            polygon=height_estimation_params.building_polygon,
+            config=est_config,
+            all_buildings=height_estimation_params.all_buildings,
+        )
+
     # Acquire image (handles caching internally)
     acq_config = height_estimation_params.to_acquisition_config()
     acq_result = acquire_building_image(
@@ -455,7 +485,6 @@ def corrected_height_from_single_view(
     if correction_model is None:
         correction_model = HeightCorrectionModel()
     correction_model.load_model()
-    correction_model.pretrained.feature_indices_used_for_clustering = list(range(0, 13))
 
     # Get raw height estimate
     raw_height = building_height_from_single_view(height_estimation_parameters)
@@ -464,29 +493,23 @@ def corrected_height_from_single_view(
     street_view_image = None
     material_percentages = None
 
-    pictures_dir = Path(height_estimation_parameters.pictures_directory)
-
-    try:
-        acq_result = load_image_with_metadata(
-            pictures_dir / "image.jpg",
-            pictures_dir / "metadata.json",
-        )
-
-        if acq_result.is_valid:
-            street_view_image = acq_result.image
-
-            # Extract camera parameters for materials
-            cam_dict = acq_result.metadata.get("camera_parameters", {})
-            camera_parameters = CameraParameters(
-                longitude=cam_dict.get("longitude", 0),
-                latitude=cam_dict.get("latitude", 0),
+    if height_estimation_parameters.image is not None:
+        street_view_image = height_estimation_parameters.image
+        camera_parameters = height_estimation_parameters.camera_parameters
+        if camera_parameters is None:
+            h, w = street_view_image.shape[:2]
+            centroid = height_estimation_parameters.building_polygon.centroid
+            camera_parameters = GSVCameraParameters(
+                longitude=float(centroid.x),
+                latitude=float(centroid.y),
+                fov=90,
+                heading=0,
+                pitch=0,
+                width=w,
+                height=h,
             )
-            camera_parameters.fov = cam_dict.get("fov", 90)
-            camera_parameters.heading = cam_dict.get("heading", 0)
-            camera_parameters.pitch = cam_dict.get("pitch", 0)
-            camera_parameters.height = cam_dict.get("height", 640)
-            camera_parameters.width = cam_dict.get("width", 640)
 
+        try:
             bmp = BuildingMaterialProperties(
                 img=street_view_image,
                 verbose=verbose,
@@ -494,45 +517,78 @@ def corrected_height_from_single_view(
             bmp.building_height = raw_height
             bmp.footprint = height_estimation_parameters.building_polygon
             bmp.camera_parameters = camera_parameters
-
             material_percentages = get_building_materials_segmentation(bmp)
-
-    except Exception:
-        #print("WAS NONE")
-        pictures_dir = Path(height_estimation_parameters.pictures_directory)
-        try:
-            image_path = pictures_dir / "image.jpg"
-            metadata_path = pictures_dir / "metadata.json"
-
-            street_view_image = np.array(Image.open(image_path))
-
-            with open(metadata_path) as f:
-                metadata = json.load(f)
-
-            camera_parameters_dict = metadata["camera_parameters"]
-            camera_parameters = GSVCameraParameters(
-                longitude=camera_parameters_dict["longitude"],
-                latitude=camera_parameters_dict["latitude"],
-            )
-            camera_parameters.fov = camera_parameters_dict["fov"]
-            camera_parameters.heading = camera_parameters_dict["heading"]
-            camera_parameters.pitch = camera_parameters_dict["pitch"]
-            camera_parameters.height = camera_parameters_dict["height"]
-            camera_parameters.width = camera_parameters_dict["width"]
-
-            bmp = BuildingMaterialProperties(
-                img=street_view_image,
-                verbose=verbose,
-            )
-            bmp.building_height = raw_height
-            bmp.footprint = height_estimation_parameters.building_polygon
-            bmp.camera_parameters = None
-
-            material_percentages = get_building_materials_segmentation(bmp)
-
         except Exception:
             street_view_image = None
             material_percentages = None
+    else:
+        pictures_dir = Path(height_estimation_parameters.pictures_directory)
+        try:
+            acq_result = load_image_with_metadata(
+                pictures_dir / "image.jpg",
+                pictures_dir / "metadata.json",
+            )
+
+            if acq_result.is_valid:
+                street_view_image = acq_result.image
+
+                # Extract camera parameters for materials
+                cam_dict = acq_result.metadata.get("camera_parameters", {})
+                camera_parameters = CameraParameters(
+                    longitude=cam_dict.get("longitude", 0),
+                    latitude=cam_dict.get("latitude", 0),
+                )
+                camera_parameters.fov = cam_dict.get("fov", 90)
+                camera_parameters.heading = cam_dict.get("heading", 0)
+                camera_parameters.pitch = cam_dict.get("pitch", 0)
+                camera_parameters.height = cam_dict.get("height", 640)
+                camera_parameters.width = cam_dict.get("width", 640)
+
+                bmp = BuildingMaterialProperties(
+                    img=street_view_image,
+                    verbose=verbose,
+                )
+                bmp.building_height = raw_height
+                bmp.footprint = height_estimation_parameters.building_polygon
+                bmp.camera_parameters = camera_parameters
+
+                material_percentages = get_building_materials_segmentation(bmp)
+
+        except Exception:
+            pictures_dir = Path(height_estimation_parameters.pictures_directory)
+            try:
+                image_path = pictures_dir / "image.jpg"
+                metadata_path = pictures_dir / "metadata.json"
+
+                street_view_image = np.array(Image.open(image_path))
+
+                with open(metadata_path) as f:
+                    metadata = json.load(f)
+
+                camera_parameters_dict = metadata["camera_parameters"]
+                camera_parameters = GSVCameraParameters(
+                    longitude=camera_parameters_dict["longitude"],
+                    latitude=camera_parameters_dict["latitude"],
+                )
+                camera_parameters.fov = camera_parameters_dict["fov"]
+                camera_parameters.heading = camera_parameters_dict["heading"]
+                camera_parameters.pitch = camera_parameters_dict["pitch"]
+                camera_parameters.height = camera_parameters_dict["height"]
+                camera_parameters.width = camera_parameters_dict["width"]
+
+                bmp = BuildingMaterialProperties(
+                    img=street_view_image,
+                    verbose=verbose,
+                )
+                bmp.building_height = raw_height
+                bmp.footprint = height_estimation_parameters.building_polygon
+                bmp.camera_parameters = None
+
+                material_percentages = get_building_materials_segmentation(bmp)
+
+            except Exception:
+                street_view_image = None
+                material_percentages = None
 
     # Apply correction model
     corrected_height = correction_model.predict(
