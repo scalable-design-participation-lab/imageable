@@ -20,7 +20,7 @@ An open-source Python library for extracting **43+ building properties** from st
 ## Installation
 
 ```bash
-pip install imageable
+pip install urban-imageable
 ```
 
 ### For Development

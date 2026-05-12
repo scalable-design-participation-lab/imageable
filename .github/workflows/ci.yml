@@ -2,9 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop, feat/*, fix/*, refactor/*, docs/*]
+    branches: [main, develop, feat/*, fix/*, refactor/*, docs/*]
+  release:
+    types: [created]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,39 +18,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-    - name: Set up Python 3.13
-      run: uv python install 3.13
+      - name: Set up Python 3.13
+        run: uv python install 3.13
 
-    - name: Install dependencies
-      run: uv sync --group dev
+      - name: Install dependencies
+        run: uv sync --group dev
 
-    - name: Run tests with pytest
-      run: uv run pytest
+      - name: Run tests with pytest
+        run: uv run pytest
 
   lint:
     name: Pre-commit checks
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-    - name: Set up Python
-      run: uv python install 3.13
+      - name: Set up Python
+        run: uv python install 3.13
 
-    - name: Install dependencies
-      run: uv sync --group dev
+      - name: Install dependencies
+        run: uv sync --group dev
 
-    - name: Run pre-commit
-      run: uv run pre-commit run --all-files
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files
+
+  pypi-publish:
+    name: Publish release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/urban-imageable
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
