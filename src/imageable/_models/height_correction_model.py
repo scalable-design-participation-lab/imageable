@@ -9,6 +9,7 @@ from imageable._extraction.extract import extract_building_properties
 from imageable._features.height.building_height import HeightEstimationParameters
 from shapely.geometry import Polygon
 import numpy as np
+from pathlib import Path
 from typing import ClassVar
 
 
@@ -99,9 +100,27 @@ class HeightCorrectionModel(BaseModelWrapper):
     def __init__(
         self,
         pretrained: ClusterWeightedEnsembleWrapper | ClusterWeightedEnsembleSpatialWrapper = None,
+        model_path: str | Path | None = None,
+        scaler_path: str | Path | None = None,
     ) -> None:
         self.pretrained = pretrained
         self.scaler = None
+        self.model_path = Path(model_path) if model_path is not None else None
+        self.scaler_path = Path(scaler_path) if scaler_path is not None else None
+
+        if (self.model_path is None) ^ (self.scaler_path is None):
+            msg = "model_path and scaler_path must be provided together, or both omitted."
+            raise ValueError(msg)
+
+    def _load_local(self) -> None:
+        if not self.model_path.exists():
+            msg = f"Model file not found: {self.model_path}"
+            raise FileNotFoundError(msg)
+        if not self.scaler_path.exists():
+            msg = f"Scaler file not found: {self.scaler_path}"
+            raise FileNotFoundError(msg)
+        self.pretrained = joblib.load(self.model_path)
+        self.scaler = joblib.load(self.scaler_path)
 
     def _download_model(self) -> None:
         # --- 1) Ensemble model ---
@@ -142,7 +161,11 @@ class HeightCorrectionModel(BaseModelWrapper):
         self.scaler = joblib.load(scaler_path)
 
     def load_model(self) -> None:
-        if self.pretrained is None or not self.pretrained.is_loaded():
+        if self.pretrained is not None and self.pretrained.is_loaded():
+            return
+        if self.model_path is not None:
+            self._load_local()
+        else:
             self._download_model()
 
     def is_loaded(self) -> bool:
