@@ -145,6 +145,27 @@ class TestGetImage:
         assert config.max_refinement_iterations == 1
 
     @patch("imageable.core.image.acquire_building_image")
+    def test_passes_preloaded_street_network(
+        self, mock_acquire, simple_polygon, mock_image, mock_camera_params
+    ):
+        """Test that a preloaded street network is forwarded to acquisition config."""
+        from imageable._images.acquisition import ImageAcquisitionResult
+
+        mock_acquire.return_value = ImageAcquisitionResult(
+            image=mock_image,
+            camera_params=mock_camera_params,
+            metadata={},
+            success=True,
+        )
+        network = object()
+
+        get_image("api_key", simple_polygon, street_network=network)
+
+        call_args = mock_acquire.call_args
+        config = call_args[1].get("config", call_args[0][1])
+        assert config.street_network is network
+
+    @patch("imageable.core.image.acquire_building_image")
     def test_raises_on_failed_acquisition(
         self, mock_acquire, simple_polygon
     ):

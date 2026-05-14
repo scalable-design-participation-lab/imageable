@@ -25,6 +25,7 @@ from imageable._images.image import CameraParameters
 import numpy as np
 # Type aliases
 OutputFormat = Literal["gdf", "geojson", "dict"]
+HeightMode = Literal["raw", "corrected"]
 
 
 # =============================================================================
@@ -38,9 +39,11 @@ def get_building_data_from_gdf(
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
+    height_mode: HeightMode = "raw",
     verbose: bool = False,
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
-    pictures_directory: str | Path | None = None
+    pictures_directory: str | Path | None = None,
+    images_dir: str | Path | None = None
 ) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
     """
     Extract building properties from a GeoDataFrame.
@@ -84,9 +87,11 @@ def get_building_data_from_gdf(
         id_column=id_column,
         neighbor_radius=neighbor_radius,
         output_format=output_format,
+        height_mode=height_mode,
         verbose=verbose,
         all_city_buildings_gdf=all_city_buildings_gdf,
-        pictures_directory=pictures_directory
+        pictures_directory=pictures_directory,
+        images_dir = images_dir
     )
 
 
@@ -97,9 +102,11 @@ def get_building_data_from_geojson(
     id_property: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
+    height_mode: HeightMode = "raw",
     verbose: bool = False,
     city_buildings: str | Path | dict[str, Any] | None = None,
     pictures_directory: str | Path | None = None,
+    images_dir: str | Path | None = None
 ) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
     """
     Extract building properties from GeoJSON file or dict.
@@ -143,9 +150,11 @@ def get_building_data_from_geojson(
         id_column=id_property,
         neighbor_radius=neighbor_radius,
         output_format=output_format,
+        height_mode=height_mode,
         verbose=verbose,
         all_city_buildings_gdf=all_city_buildings_gdf,
-        pictures_directory=pictures_directory
+        pictures_directory=pictures_directory,
+        images_dir = images_dir
     )
 
 
@@ -156,8 +165,9 @@ def get_building_data_from_file(
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
+    height_mode: HeightMode = "raw",
     verbose: bool = False,
-    city_buildings: str | Path | dict[str, Any] | None = None
+    city_buildings: str | Path | dict[str, Any] | None = None,
 ) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
     """
     Extract building properties from local footprints and pre-downloaded images.
@@ -212,6 +222,7 @@ def get_building_data_from_file(
         id_column=id_column,
         neighbor_radius=neighbor_radius,
         output_format=output_format,
+        height_mode=height_mode,
         verbose=verbose,
         all_city_buildings_gdf=all_city_buildings_gdf,
     )
@@ -229,6 +240,7 @@ def _extract_building_data_core(
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
+    height_mode: HeightMode = "raw",
     verbose: bool = False,
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
     pictures_directory: str | Path | None = None,
@@ -337,17 +349,29 @@ def _extract_building_data_core(
         # Estimate height when API key is available or local cache is present
         height = None
         if images_dir and has_image:
+            camera_parameters_dictionary = metadata.get("camera_parameters", None) if metadata is not None else None
             height = _estimate_height(
                 polygon,
                 "",
                 verbose=verbose,
                 all_buildings=all_polygons,
                 image=image,
+                camera_parameters=camera_parameters_dictionary,
+                height_mode=height_mode,
             )
         elif image_key and has_image:
             if verbose:
                 print(f"  Estimating height...")
-            height = _estimate_height(polygon, image_key, verbose=verbose)
+            camera_parameters_dictionary = metadata.get("camera_parameters", None) if metadata is not None else None
+            height = _estimate_height(
+                polygon,
+                image_key,
+                verbose=verbose,
+                all_buildings=all_polygons,
+                image=image,
+                camera_parameters=camera_parameters_dictionary,
+                height_mode=height_mode,
+            )
 
 
         print(f"DEBUG: building_id={building_id}, height={height}")
@@ -556,32 +580,71 @@ def _estimate_height(
         api_key: str,
         verbose: bool = False,
         all_buildings=None,
-        image = None
+        image = None,
+        camera_parameters: dict[str, Any] | None = None,
+        height_mode: HeightMode = "raw",
 ) -> float | None:
     from imageable._features.height.building_height import (
         HeightEstimationParameters,
         building_height_from_single_view,
+        estimate_height_from_image,
         corrected_height_from_single_view
     )
+    from imageable._images.camera.camera_parameters import CameraParameters as GSVCameraParameters
 
     try:
         params = HeightEstimationParameters(
             gsv_api_key=api_key,
             building_polygon=polygon,
             verbose=verbose,
-            image = image
+            image=image,
         )
 
         if all_buildings is not None and hasattr(params, "all_buildings"):
             params.all_buildings = all_buildings
 
-        if params.all_buildings is None:
-            return building_height_from_single_view(params)
-        #print(f"DEBUG: correcting height")
+        if image is not None:
+            if isinstance(camera_parameters, dict):
+                h, w = image.shape[:2]
+                camera_params = GSVCameraParameters(
+                    longitude=float(camera_parameters.get("longitude", polygon.centroid.x)),
+                    latitude=float(camera_parameters.get("latitude", polygon.centroid.y)),
+                    fov=float(camera_parameters.get("fov", 90)),
+                    heading=float(camera_parameters.get("heading", 0)),
+                    pitch=float(camera_parameters.get("pitch", 0)),
+                    width=int(camera_parameters.get("width", w)),
+                    height=int(camera_parameters.get("height", h)),
+                )
+            else:
+                h, w = image.shape[:2]
+                camera_params = GSVCameraParameters(
+                    longitude=float(polygon.centroid.x),
+                    latitude=float(polygon.centroid.y),
+                    fov=90,
+                    heading=0,
+                    pitch=0,
+                    width=w,
+                    height=h,
+                )
+            params.camera_parameters = camera_params
+            raw_height = estimate_height_from_image(
+                image=image,
+                camera_params=camera_params,
+                polygon=polygon,
+                config=params.to_estimation_config(),
+                all_buildings=params.all_buildings,
+            )
+        else:
+            raw_height = building_height_from_single_view(params)
+
+        if height_mode == "raw":
+            return raw_height
+
         return corrected_height_from_single_view(
             params,
             params.building_label,
-            all_buildings=params.all_buildings,
+            all_buildings=params.all_buildings if params.all_buildings is not None else [],
+            verbose=verbose,
         )
     except Exception as e:
         print("DEBUG _estimate_height error:", e)

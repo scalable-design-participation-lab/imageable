@@ -43,14 +43,14 @@ def get_dataset(
     --------
     >>> from imageable import get_dataset
     >>> from shapely.geometry import Polygon
-    >>> 
+    >>>
     >>> footprint = Polygon([(0, 0), (10, 0), (10, 20), (0, 20)])
     >>> props = get_dataset(api_key, footprint)
     >>> print(f"Height: {props.building_height}m")
     """
     # Use existing extract function
     return extract_building_properties(
-        building_id=key, 
+        building_id=key,
         polygon=building_footprint,
         all_buildings=[],  # Single building mode
         neighbor_radius=neighbor_radius,
