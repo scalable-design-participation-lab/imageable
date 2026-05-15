@@ -374,7 +374,8 @@ def _extract_building_data_core(
             )
 
 
-        print(f"DEBUG: building_id={building_id}, height={height}")
+        if verbose:
+            print(f"  Height: {height}")
         # Estimate the building materialpercentages
         materials_dictionary = None
         areas_dict = None
@@ -422,8 +423,8 @@ def _extract_building_data_core(
                     areas_dict = None
                     units = None
 
-
-        print(f"DEBUG: materials_dictionary = {materials_dictionary}")
+        if verbose:
+            print(f"  Materials: {materials_dictionary}")
         # Extract properties
         props = extract_building_properties(
             building_id=building_id,
@@ -485,7 +486,6 @@ def _load_local_image_and_metadata(images_dir: Path, building_id: str):
     metadata = None
 
     img_path = images_dir / building_id / "image.jpg"
-    print(img_path)
     if img_path.exists():
         image = np.array(Image.open(img_path))
 
@@ -597,10 +597,12 @@ def _estimate_height(
             gsv_api_key=api_key,
             building_polygon=polygon,
             verbose=verbose,
-            image=image,
         )
 
-        if all_buildings is not None and hasattr(params, "all_buildings"):
+        if image is not None:
+            params.image = image
+
+        if all_buildings is not None:
             params.all_buildings = all_buildings
 
         if image is not None:
@@ -632,7 +634,7 @@ def _estimate_height(
                 camera_params=camera_params,
                 polygon=polygon,
                 config=params.to_estimation_config(),
-                all_buildings=params.all_buildings,
+                all_buildings=getattr(params, "all_buildings", None),
             )
         else:
             raw_height = building_height_from_single_view(params)
@@ -643,11 +645,12 @@ def _estimate_height(
         return corrected_height_from_single_view(
             params,
             params.building_label,
-            all_buildings=params.all_buildings if params.all_buildings is not None else [],
+            all_buildings=getattr(params, "all_buildings", None) or [],
             verbose=verbose,
         )
     except Exception as e:
-        print("DEBUG _estimate_height error:", e)
+        if verbose:
+            print("_estimate_height error:", e)
         return None
 
 
