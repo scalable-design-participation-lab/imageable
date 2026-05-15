@@ -1,6 +1,6 @@
 [project]
 name = "urban-imageable"
-version = "0.1.1"
+version = "0.1.2"
 description = "Computer vision library for extracting 43+ building properties from street view images and footprints"
 readme = "README.md"
 authors = [
