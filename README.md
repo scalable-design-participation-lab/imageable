@@ -263,7 +263,7 @@ If you use imageable in your research, please cite:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+BSD-2-Clause license - see [LICENSE](LICENSE) for details.
 
 ## Authors
 
