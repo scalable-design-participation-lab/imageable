@@ -88,7 +88,7 @@ class WheelElement:
         # image -> show at element position, square with side = 2*size
         elif isinstance(self.data, np.ndarray):
             size = self.size * image_scale
-            ax.imshow(
+            img_artist = ax.imshow(
                 np.asarray(self.data),
                 extent=[
                     self.x - size, self.x + size,
@@ -98,6 +98,23 @@ class WheelElement:
                 interpolation="lanczos",
                 resample=True,
             )
+            # Keep image large but visually discrete by clipping it to its own ring sector.
+            clip_pad = 0.98
+            inner_r = self.radius - (delta_r / 2) * clip_pad
+            outer_r = self.radius + (delta_r / 2) * clip_pad
+            theta1 = (self.angle - (delta_angle / 2) * clip_pad) * 180 / np.pi
+            theta2 = (self.angle + (delta_angle / 2) * clip_pad) * 180 / np.pi
+            clip_wedge = Wedge(
+                center=(0, 0),
+                r=outer_r,
+                theta1=theta1,
+                theta2=theta2,
+                width=(outer_r - inner_r),
+                facecolor="none",
+                edgecolor="none",
+            )
+            ax.add_patch(clip_wedge)
+            img_artist.set_clip_path(clip_wedge)
 
         # text -> write at angular position, oriented
         elif isinstance(self.data, str):
@@ -145,7 +162,7 @@ class WheelVisualization:
                  radius_size: float = 10.0,
                  reduction_factor: float = 0.8,
                  image_scale: float = 0.33,
-                 image_outer_boost: float = 0.0
+                 image_outer_boost: float = 0.0,
                  ) -> None:
 
         self.elements = elements
@@ -226,7 +243,9 @@ class WheelVisualization:
                    radial_alpha: float = 0.1,
                    scaffold_color: str = "#111111",
                    footprint_color: str = "#31cceb",
-                   show_feature_colorbars: bool = True) -> None:
+                   show_feature_colorbars: bool = True,
+                   save_path: str | None = None,
+                   group_label_boost: float = 0.35) -> None:
         center = (0, 0)
         radius_delta = self.radius_size / self.n_features
         radius_list = [i * radius_delta for i in range(self.n_features + 2)]
@@ -337,7 +356,7 @@ class WheelVisualization:
                 )
 
         # group labels
-        outer_label_r = self.radius_size + radius_delta * 1.35
+        outer_label_r = self.radius_size + radius_delta * group_label_boost
         tangent_offset = radius_delta * 0.45
 
         for i, gname in enumerate(self.group_names):
@@ -423,3 +442,6 @@ class WheelVisualization:
                         tick_labels[-1].set_horizontalalignment("right")
                     cb.outline.set_linewidth(0.4)
                     cb.ax.set_title(fname, fontsize=8, pad=1)
+        
+        if save_path is not None:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")

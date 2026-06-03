@@ -64,7 +64,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         distance_eps: float = 1e-12,
         feature_indices_used_for_clustering: Optional[List[int]] = None,
         scale: bool = False,      
-        decay_constant: float = 1.0,      
+        decay_constant: float = 3.0,      
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
@@ -72,8 +72,8 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self.distance_eps = distance_eps
         self.decay_constant = decay_constant
         self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
-        self.scale = scale                 
-        self.scaler = StandardScaler() if scale else None    
+        self.scale = scale
+        self.scaler = StandardScaler() if scale else None
 
         self._kmeans = None
         self._cluster_centers = None
@@ -152,7 +152,8 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
 
         dists = pairwise_distances(X_cluster, self._cluster_centers)
         dists = np.maximum(dists, self.distance_eps)
-        w = np.exp(-self.decay_constant * dists)
+        min_dists = np.min(dists, axis=1, keepdims=True)
+        w = np.exp(-self.decay_constant * (dists - min_dists))
         w = w / np.sum(w, axis=1, keepdims=True)
         return w
 

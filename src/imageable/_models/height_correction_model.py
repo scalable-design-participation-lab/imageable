@@ -47,8 +47,6 @@ class HeightCorrectionModel(BaseModelWrapper):
         "isoperimetric_quotient",
         "mean_distance_to_neighbors",
         "nearest_neighbor_distance",
-        # footprint block includes building_height
-        "building_height",
         # material block used in clustering_training.ipynb
         "material_pct_concrete",
         "material_pct_metal",
@@ -63,35 +61,6 @@ class HeightCorrectionModel(BaseModelWrapper):
         # raw_gsv_feature appends building_height again
         "building_height",
     ]
-
-    FEATURES_MAPPING_DICT: ClassVar[dict[str, int]] = {
-        "unprojected_area": 0,
-        "projected_area": 1,
-        "longitude_difference": 2,
-        "latitude_difference": 3,
-        "n_vertices": 4,
-        "shape_length": 5,
-        "complexity": 6,
-        "inverse_average_segment_length": 7,
-        "vertices_per_area": 8,
-        "average_complexity_per_segment": 9,
-        "isoperimetric_quotient": 10,
-        "mean_distance_to_neighbors": 11,
-        "nearest_neighbor_distance": 12,
-        "building_height": 13,
-        "material_pct_concrete": 14,
-        "material_pct_metal": 15,
-        "material_pct_glass": 16,
-        "material_pct_plastic": 17,
-        "material_pct_asphalt": 18,
-        "material_pct_brick": 19,
-        "material_pct_human_body": 20,
-        "material_pct_wood": 21,
-        "material_pct_plaster": 22,
-        "material_pct_leaf": 23,
-        # alias for the duplicated final input position
-        "building_height_raw_gsv": 24,
-    }
 
     MODEL_REPO = "walup/cluster_height_correction_model"
     MODEL_FILE_NAME = "cluster_ensemble_model.pkl"
@@ -122,14 +91,16 @@ class HeightCorrectionModel(BaseModelWrapper):
         self.pretrained = joblib.load(self.model_path)
         self.scaler = joblib.load(self.scaler_path)
 
-    def _download_model(self) -> None:
+    def _download_model(
+            self,
+            override=False) -> None:
         # --- 1) Ensemble model ---
         cached = try_to_load_from_cache(
             repo_id=self.MODEL_REPO,
             filename=self.MODEL_FILE_NAME,
         )
 
-        if cached is None:
+        if cached is None or override:
             model_path = hf_hub_download(
                 repo_id=self.MODEL_REPO,
                 filename=self.MODEL_FILE_NAME,
