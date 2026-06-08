@@ -37,7 +37,7 @@ from imageable._images.camera.camera_parameters import CameraParameters
 
 def get_image(
     key: str,
-    building_footprint: Polygon,
+    footprint: Polygon,
     *,
     save_path: str | Path | None = None,
     return_metadata: bool = True,
@@ -58,7 +58,7 @@ def get_image(
     ----------
     key : str
         Google Street View API key.
-    building_footprint : shapely.Polygon
+    footprint : shapely.Polygon
         Building footprint geometry.
     save_path : str or Path, optional
         Directory to save the downloaded image and metadata.
@@ -141,7 +141,7 @@ def get_image(
         street_network=street_network,
     )
 
-    result = acquire_building_image(building_footprint, config)
+    result = acquire_building_image(footprint, config)
 
     if not result.is_valid:
         raise RuntimeError("Failed to acquire image for building footprint")

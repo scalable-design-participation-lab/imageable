@@ -92,7 +92,7 @@ class BuildingMaterialProperties:
     backbone: str = "mit_b2"
     sync_bn: bool = False
     backbone_model_path: str | None = None
-    building_height: float | None = None
+    height: float | None = None
     camera_parameters: CameraParameters | None = None
     footprint: Polygon | None = None
     verbose: bool = False
@@ -309,7 +309,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
     area_multiplier_m2 = None
     if (
         properties.footprint is not None
-        and properties.building_height is not None
+        and properties.height is not None
         and properties.camera_parameters is not None
     ):
         # Let's first get an enclosing parallelogram to the polygon
@@ -343,7 +343,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
             gdf_line = gdf_line.to_crs(epsg=3857)  # Web Mercator, units in meters
             line_length_meters = gdf_line.geometry.length.values[0]
             # Now we can calculate the area of the building side in square meters
-            building_side_area_m2 = line_length_meters * properties.building_height
+            building_side_area_m2 = line_length_meters * properties.height
             # Now we can calculate the area per material
             physical_units = True
             area_multiplier_m2 = building_side_area_m2

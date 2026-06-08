@@ -76,7 +76,7 @@ def dataset_from_gdf(
         height_params = dataset_params.height_estimation_parameters
         if height_params is not None:
             height_params = HeightEstimationParameters(**vars(height_params))
-            height_params.building_polygon = footprint
+            height_params.footprint = footprint
             pictures_dir = f"{height_params.pictures_directory}/{footprint_index}"
             print("pictures dir "+pictures_dir)
             height_params.pictures_directory = pictures_dir
@@ -111,18 +111,18 @@ def dataset_from_gdf(
         if (img is not None) and (material_segmentation_parameters is not None):
             msp = BuildingMaterialProperties(**vars(material_segmentation_parameters))
             msp.img = img
-            msp.building_height = height
+            msp.height = height
             msp.footprint = footprint
             msp.camera_parameters = camera_parameters
             materials = get_building_materials_segmentation(msp)
 
             individual_building_props = extract_building_properties(
                 building_id=footprint_index,
-                polygon=footprint,
+                footprint=footprint,
                 all_buildings=footprints,
                 crs=gdf.crs,
                 street_view_image=img,
-                height_value=height,
+                svi_height=height,
                 material_percentages=materials,
                 verbose=verbose,
             )

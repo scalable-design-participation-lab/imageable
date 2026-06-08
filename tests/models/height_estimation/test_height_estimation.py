@@ -23,10 +23,10 @@ class TestHeightEstimationParameters:
     def test_initialization_with_required_params(self):
         """Test initialization with only required parameters."""
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
-        params = HeightEstimationParameters(gsv_api_key="test_api_key", building_polygon=polygon)
+        params = HeightEstimationParameters(gsv_api_key="test_api_key", footprint=polygon)
 
         assert params.gsv_api_key == "test_api_key"
-        assert params.building_polygon == polygon
+        assert params.footprint == polygon
         assert params.confidence_detection == 0.1
         assert params.max_number_of_images == 5
         assert params.verbose is False
@@ -37,7 +37,7 @@ class TestHeightEstimationParameters:
 
         params = HeightEstimationParameters(
             gsv_api_key="custom_key",
-            building_polygon=polygon,
+            footprint=polygon,
             confidence_detection=0.2,
             max_number_of_images=10,
             min_floor_ratio=0.0001,
@@ -63,7 +63,7 @@ class TestHeightEstimationParameters:
     def test_default_label_values(self):
         """Test that default label values are set correctly."""
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
-        params = HeightEstimationParameters(gsv_api_key="test_key", building_polygon=polygon)
+        params = HeightEstimationParameters(gsv_api_key="test_key", footprint=polygon)
 
         assert params.sky_label == [0, 2]
         assert params.building_label == [1]
@@ -72,7 +72,7 @@ class TestHeightEstimationParameters:
     def test_default_thresholds(self):
         """Test that default threshold values are set correctly."""
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
-        params = HeightEstimationParameters(gsv_api_key="test_key", building_polygon=polygon)
+        params = HeightEstimationParameters(gsv_api_key="test_key", footprint=polygon)
 
         assert params.line_classification_angle_threshold == 10.0
         assert params.line_score_threshold == 0.5
@@ -82,7 +82,7 @@ class TestHeightEstimationParameters:
     def test_remapping_dict_default(self):
         """Test that the default remapping dictionary is set correctly."""
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
-        params = HeightEstimationParameters(gsv_api_key="test_key", building_polygon=polygon)
+        params = HeightEstimationParameters(gsv_api_key="test_key", footprint=polygon)
 
         expected_dict = {2: 1, 26: 1, 3: 2, 12: 11, 7: 11, 4: 11, 10: 11, 14: 11}
         assert params.remapping_dict == expected_dict
@@ -92,7 +92,7 @@ class TestHeightEstimationParameters:
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
         params = HeightEstimationParameters(
             gsv_api_key="test_key",
-            building_polygon=polygon,
+            footprint=polygon,
             min_floor_ratio=0.001,
             min_sky_ratio=0.2,
             max_number_of_images=10,
@@ -110,7 +110,7 @@ class TestHeightEstimationParameters:
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
         params = HeightEstimationParameters(
             gsv_api_key="test_key",
-            building_polygon=polygon,
+            footprint=polygon,
             device_seg="cuda",
             verbose=True,
         )
@@ -224,7 +224,7 @@ class TestBuildingHeightFromSingleView:
     @pytest.fixture
     def sample_params(self, sample_polygon):
         """Create sample HeightEstimationParameters."""
-        return HeightEstimationParameters(gsv_api_key="test_key", building_polygon=sample_polygon)
+        return HeightEstimationParameters(gsv_api_key="test_key", footprint=sample_polygon)
 
     @pytest.fixture
     def mock_acquisition_result(self):
@@ -290,7 +290,7 @@ class TestBuildingHeightFromSingleView:
         
         params = HeightEstimationParameters(
             gsv_api_key="my_key",
-            building_polygon=sample_polygon,
+            footprint=sample_polygon,
             min_floor_ratio=0.001,
             min_sky_ratio=0.2,
         )
@@ -451,7 +451,7 @@ class TestIntegrationScenarios:
         """Test with realistic building parameters."""
         params = HeightEstimationParameters(
             gsv_api_key="test_key",
-            building_polygon=realistic_polygon,
+            footprint=realistic_polygon,
             device_seg="cpu",
             device_lcnn="cpu",
             verbose=False,
@@ -459,6 +459,6 @@ class TestIntegrationScenarios:
 
         # Verify all parameters are set correctly
         assert params.gsv_api_key == "test_key"
-        assert params.building_polygon == realistic_polygon
+        assert params.footprint == realistic_polygon
         assert params.device_seg == "cpu"
         assert params.device_lcnn == "cpu"

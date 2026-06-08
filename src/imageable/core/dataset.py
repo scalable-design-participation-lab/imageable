@@ -51,7 +51,7 @@ def get_dataset(
     # Use existing extract function
     return extract_building_properties(
         building_id=key,
-        polygon=building_footprint,
+        footprint=building_footprint,
         all_buildings=[],  # Single building mode
         neighbor_radius=neighbor_radius,
         crs=crs,

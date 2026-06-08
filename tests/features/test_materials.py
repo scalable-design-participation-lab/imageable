@@ -44,14 +44,14 @@ def test_building_material_properties():
     building_material_props = BuildingMaterialProperties(
         img = img,
         camera_parameters = camera_parameters,
-        building_height = building_height,
+        height = building_height,
         footprint = footprint
     )
 
     #Assert some of the properties that are crucial for building material areas calculation
     assert building_material_props.img is not None
     assert building_material_props.camera_parameters.heading == 0.0
-    assert building_material_props.building_height == 15.0
+    assert building_material_props.height == 15.0
     assert building_material_props.footprint.area == 100.0
     assert isinstance(building_material_props.footprint, Polygon)
 
@@ -75,7 +75,7 @@ def test_building_material_percentages():
     building_material_props = BuildingMaterialProperties(
         img = img,
         camera_parameters = camera_parameters,
-        building_height = building_height,
+        height = building_height,
         footprint = None,
     )
 
@@ -109,7 +109,7 @@ def test_building_material_areas():
     building_material_props = BuildingMaterialProperties(
         img = img,
         camera_parameters = camera_parameters,
-        building_height = building_height,
+        height = building_height,
         footprint = footprint,
     )
 

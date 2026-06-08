@@ -131,7 +131,7 @@ class HeightEstimationParameters:
     """
 
     gsv_api_key: str
-    building_polygon: Polygon
+    footprint: Polygon
     pictures_directory: str = str(Path(__file__).resolve().parents[3] / "notebooks" / "pictures")
     # Image acquisition parameters
     save_reel: bool = False
@@ -142,7 +142,7 @@ class HeightEstimationParameters:
     min_floor_ratio: float = 0.00001
     min_sky_ratio: float = 0.1
     # Height estimation parameters
-    segformer_name: str = "nvidia/segformer-b5-finetuned-ade-640-640"
+    segformer_model: str = "nvidia/segformer-b5-finetuned-ade-640-640"
     palette_path: str = str(Path(__file__).resolve().parents[2] / "assets" / "ade20k_palette.json")
     device_seg: str = "cpu"
     remapping_dict: dict[int, int] = field(
@@ -185,7 +185,7 @@ class HeightEstimationParameters:
     def to_estimation_config(self) -> HeightEstimationConfig:
         """Convert to HeightEstimationConfig."""
         return HeightEstimationConfig(
-            segformer_name=self.segformer_name,
+            segformer_name=self.segformer_model,
             palette_path=self.palette_path,
             device_seg=self.device_seg,
             remapping_dict=self.remapping_dict,
@@ -375,9 +375,9 @@ def _predict_line_score_threshold(
 
         props = extract_building_properties(
             building_id=building_label,
-            polygon=polygon,
+            footprint=polygon,
             all_buildings=all_buildings,
-            height_value=None,
+            svi_height=None,
             verbose=False,
         )
 
@@ -409,7 +409,7 @@ def building_height_from_single_view(
 
     Returns
     -------
-    height
+    svi_height
         Estimated building height in meters, or None if estimation failed.
     """
     # If image is provided, skip acquisition and estimate directly.
@@ -418,7 +418,7 @@ def building_height_from_single_view(
         camera_params = height_estimation_params.camera_parameters
         if camera_params is None:
             h, w = image.shape[:2]
-            centroid = height_estimation_params.building_polygon.centroid
+            centroid = height_estimation_params.footprint.centroid
             camera_params = GSVCameraParameters(
                 longitude=float(centroid.x),
                 latitude=float(centroid.y),
@@ -433,7 +433,7 @@ def building_height_from_single_view(
         return estimate_height_from_image(
             image=image,
             camera_params=camera_params,
-            polygon=height_estimation_params.building_polygon,
+            polygon=height_estimation_params.footprint,
             config=est_config,
             all_buildings=height_estimation_params.all_buildings,
         )
@@ -441,7 +441,7 @@ def building_height_from_single_view(
     # Acquire image (handles caching internally)
     acq_config = height_estimation_params.to_acquisition_config()
     acq_result = acquire_building_image(
-        polygon=height_estimation_params.building_polygon,
+        polygon=height_estimation_params.footprint,
         config=acq_config,
     )
 
@@ -453,7 +453,7 @@ def building_height_from_single_view(
     return estimate_height_from_image(
         image=acq_result.image,
         camera_params=acq_result.camera_params,
-        polygon=height_estimation_params.building_polygon,
+        polygon=height_estimation_params.footprint,
         config=est_config,
         all_buildings=height_estimation_params.all_buildings,
     )
@@ -498,7 +498,7 @@ def corrected_height_from_single_view(
         camera_parameters = height_estimation_parameters.camera_parameters
         if camera_parameters is None:
             h, w = street_view_image.shape[:2]
-            centroid = height_estimation_parameters.building_polygon.centroid
+            centroid = height_estimation_parameters.footprint.centroid
             camera_parameters = GSVCameraParameters(
                 longitude=float(centroid.x),
                 latitude=float(centroid.y),
@@ -514,8 +514,8 @@ def corrected_height_from_single_view(
                 img=street_view_image,
                 verbose=verbose,
             )
-            bmp.building_height = raw_height
-            bmp.footprint = height_estimation_parameters.building_polygon
+            bmp.height = raw_height
+            bmp.footprint = height_estimation_parameters.footprint
             bmp.camera_parameters = camera_parameters
             material_percentages = get_building_materials_segmentation(bmp)
         except Exception:
@@ -548,8 +548,8 @@ def corrected_height_from_single_view(
                     img=street_view_image,
                     verbose=verbose,
                 )
-                bmp.building_height = raw_height
-                bmp.footprint = height_estimation_parameters.building_polygon
+                bmp.height = raw_height
+                bmp.footprint = height_estimation_parameters.footprint
                 bmp.camera_parameters = camera_parameters
 
                 material_percentages = get_building_materials_segmentation(bmp)
@@ -580,8 +580,8 @@ def corrected_height_from_single_view(
                     img=street_view_image,
                     verbose=verbose,
                 )
-                bmp.building_height = raw_height
-                bmp.footprint = height_estimation_parameters.building_polygon
+                bmp.height = raw_height
+                bmp.footprint = height_estimation_parameters.footprint
                 bmp.camera_parameters = None
 
                 material_percentages = get_building_materials_segmentation(bmp)

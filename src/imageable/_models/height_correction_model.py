@@ -205,15 +205,15 @@ class HeightCorrectionModel(BaseModelWrapper):
             raise RuntimeError("Scaler not loaded. Make sure the scaler file is available and loaded.")
 
         # Get the footprint for this building
-        footprint = estimation_params.building_polygon
+        footprint = estimation_params.footprint
 
         properties = extract_building_properties(
             building_id=building_id,
-            polygon=footprint,
+            footprint=footprint,
             all_buildings=all_buildings,
             crs=crs,
             street_view_image=street_view_image,
-            height_value=raw_height,
+            svi_height=raw_height,
             material_percentages=material_percentages,
             verbose=verbose,
         )

@@ -18,7 +18,7 @@ from .image import ImageCalculator
 
 def extract_building_properties(
     building_id: str,
-    polygon: Polygon,
+    footprint: Polygon,
     all_buildings: list[Polygon] | None = None,
     neighbor_radius: float = 600.0,
     crs: int = 4326,
@@ -28,7 +28,7 @@ def extract_building_properties(
     window_mask: np.ndarray | None = None,
     door_mask: np.ndarray | None = None,
     # Height estimation (optional)
-    height_value: float | None = None,
+    svi_height: float | None = None,
     # Material segmentation (optional)
     material_percentages: dict[str, float] | None = None,
     material_areas: dict[str, float] | None = None,
@@ -48,7 +48,7 @@ def extract_building_properties(
     ----------
     building_id
         Unique identifier for the building.
-    polygon
+    footprint
         Building footprint as Shapely Polygon.
     all_buildings
         List of all building polygons for neighbor detection. Optional.
@@ -64,7 +64,7 @@ def extract_building_properties(
         Binary mask of windows (H, W). Optional.
     door_mask
         Binary mask of doors (H, W). Optional.
-    height_value
+    svi_height
         Pre-calculated building height in meters. Optional.
     material_percentages
         Pre-calculated material percentages. Optional.
@@ -90,7 +90,7 @@ def extract_building_properties(
     ...     all_buildings=all_polygons,
     ...     street_view_image=image,
     ...     building_mask=mask,
-    ...     height_value=25.3,
+    ...     svi_height=25.3,
     ...     material_percentages={'concrete': 45.2, 'glass': 30.1}
     ... )
     """
@@ -102,7 +102,7 @@ def extract_building_properties(
         print(f"[1/4] Extracting footprint properties for {building_id}...")
 
     footprint_props = extract_footprint_properties(
-        polygon=polygon, all_footprints=all_buildings, crs=crs, neighbor_radius=neighbor_radius
+        polygon=footprint, all_footprints=all_buildings, crs=crs, neighbor_radius=neighbor_radius
     )
     properties.update_footprint_features(footprint_props)
     if verbose:
@@ -115,10 +115,10 @@ def extract_building_properties(
     if verbose:
         print("[2/4] Processing height...")
 
-    if height_value is not None:
-        properties.update_height(height_value)
+    if svi_height is not None:
+        properties.update_height(svi_height)
         if verbose:
-            print(f"  ✓ Height: {height_value:.2f} m")
+            print(f"  ✓ Height: {svi_height:.2f} m")
     elif verbose:
         print("  ⊘ No height provided")
 
@@ -213,7 +213,7 @@ def batch_extract_properties(
 
         props = extract_building_properties(
             building_id=building["id"],
-            polygon=building["polygon"],
+            footprint=building["polygon"],
             all_buildings=all_polygons,
             neighbor_radius=neighbor_radius,
             crs=crs,
@@ -221,7 +221,7 @@ def batch_extract_properties(
             building_mask=building.get("mask"),
             window_mask=building.get("window_mask"),
             door_mask=building.get("door_mask"),
-            height_value=building.get("height"),
+            svi_height=building.get("height"),
             material_percentages=building.get("materials"),
         )
 
@@ -319,5 +319,5 @@ def extract_from_image_path(
         mask = mask > 0  # Ensure binary
 
     return extract_building_properties(
-        building_id=building_id, polygon=polygon, street_view_image=image, building_mask=mask, **kwargs
+        building_id=building_id, footprint=polygon, street_view_image=image, building_mask=mask, **kwargs
     )

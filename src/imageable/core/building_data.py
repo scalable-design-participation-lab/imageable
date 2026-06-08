@@ -25,7 +25,8 @@ from imageable._images.image import CameraParameters
 import numpy as np
 # Type aliases
 OutputFormat = Literal["gdf", "geojson", "dict"]
-HeightMode = Literal["raw", "corrected"]
+HeightMode = Literal["svi", "cluster_then_predict","footprint_based"]
+ProviderType = Literal["google_street_view"]
 
 
 # =============================================================================
@@ -36,10 +37,11 @@ def get_building_data_from_gdf(
     gdf: gpd.GeoDataFrame,
     image_key: str,
     *,
+    provider: ProviderType = "google_street_view",
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
-    height_mode: HeightMode = "raw",
+    height_mode: HeightMode = "svi",
     verbose: bool = False,
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
     pictures_directory: str | Path | None = None,
@@ -54,14 +56,24 @@ def get_building_data_from_gdf(
         Building footprints with geometry column.
     image_key : str
         Google Street View API key for image acquisition.
+    provider: str, default = "google_street_view"
+        Provider for street view imagery.
     id_column : str, optional
         Column name for building IDs. Auto-generates if not provided.
     neighbor_radius : float, default=100.0
         Radius for neighbor analysis in meters.
     output_format : {"gdf", "geojson", "dict"}, default="gdf"
         Output format for results.
+    height_mode: HeightMode, default = "svi"
+        Method for height estimation.
     verbose : bool, default=False
         Print progress information.
+    all_city_buildings_gdf: GeoDataFrame, optional
+        GeoDataFrame containing all city buildings for improved neighbor analysis.
+    pictures_directory: str | Path, optional
+        Directory to save fetched images and metadata when using the API.
+    images_dir: str | Path, optional
+        Directory containing pre-downloaded images named by building ID. If provided, image_key is ignored.
 
     Returns
     -------
@@ -89,6 +101,7 @@ def get_building_data_from_gdf(
         output_format=output_format,
         height_mode=height_mode,
         verbose=verbose,
+        provider = provider,
         all_city_buildings_gdf=all_city_buildings_gdf,
         pictures_directory=pictures_directory,
         images_dir = images_dir
@@ -99,12 +112,13 @@ def get_building_data_from_geojson(
     source: str | Path | dict[str, Any],
     image_key: str,
     *,
-    id_property: str | None = None,
+    id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
-    height_mode: HeightMode = "raw",
+    height_mode: HeightMode = "svi",
+    provider: ProviderType = "google_street_view",
     verbose: bool = False,
-    city_buildings: str | Path | dict[str, Any] | None = None,
+    all_city_buildings_gdf: str | Path | dict[str, Any] | gpd.GeoDataFrame| None = None,
     pictures_directory: str | Path | None = None,
     images_dir: str | Path | None = None
 ) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
@@ -117,7 +131,7 @@ def get_building_data_from_geojson(
         Path to GeoJSON file or GeoJSON dict/FeatureCollection.
     image_key : str
         Google Street View API key for image acquisition.
-    id_property : str, optional
+    id_column : str, optional
         Property name for building IDs. Auto-generates if not provided.
     neighbor_radius : float, default=100.0
         Radius for neighbor analysis in meters.
@@ -140,17 +154,17 @@ def get_building_data_from_geojson(
     """
     gdf = _load_geojson_to_gdf(source)
 
-    all_city_buildings_gdf = None
-    if city_buildings is not None:
-        all_city_buildings_gdf = _load_geojson_to_gdf(city_buildings)
+    if all_city_buildings_gdf is not None:
+        all_city_buildings_gdf = _load_geojson_to_gdf(all_city_buildings_gdf)
 
     return _extract_building_data_core(
         gdf=gdf,
         image_key=image_key,
-        id_column=id_property,
+        id_column=id_column,
         neighbor_radius=neighbor_radius,
         output_format=output_format,
         height_mode=height_mode,
+        provider = provider,
         verbose=verbose,
         all_city_buildings_gdf=all_city_buildings_gdf,
         pictures_directory=pictures_directory,
@@ -165,9 +179,9 @@ def get_building_data_from_file(
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
-    height_mode: HeightMode = "raw",
+    height_mode: HeightMode = "svi",
     verbose: bool = False,
-    city_buildings: str | Path | dict[str, Any] | None = None,
+    all_city_buildings_gdf: str | Path | dict[str, Any] | gpd.GeoDataFrame | None = None,
 ) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
     """
     Extract building properties from local footprints and pre-downloaded images.
@@ -212,9 +226,9 @@ def get_building_data_from_file(
         raise FileNotFoundError(f"Images directory not found: {images_dir}")
 
     gdf = _load_geojson_to_gdf(footprints_path)
-    all_city_buildings_gdf = None
-    if city_buildings is not None:
-        all_city_buildings_gdf = _load_geojson_to_gdf(city_buildings)
+
+    if all_city_buildings_gdf is not None:
+        all_city_buildings_gdf = _load_geojson_to_gdf(all_city_buildings_gdf)
 
     return _extract_building_data_core(
         gdf=gdf,
@@ -240,7 +254,8 @@ def _extract_building_data_core(
     id_column: str | None = None,
     neighbor_radius: float = 100.0,
     output_format: OutputFormat = "gdf",
-    height_mode: HeightMode = "raw",
+    height_mode: HeightMode = "svi",
+    provider: ProviderType = "google_street_view",
     verbose: bool = False,
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
     pictures_directory: str | Path | None = None,
@@ -307,7 +322,7 @@ def _extract_building_data_core(
                     has_image = False
 
 
-        elif image_key:
+        elif image_key and provider == "google_street_view":
             per_building_dir = None
             if pictures_directory is not None:
                 per_building_dir = Path(pictures_directory) / building_id
@@ -345,6 +360,9 @@ def _extract_building_data_core(
                     image = None
                     metadata = None
                     has_image = False
+        else:
+            if(verbose):
+                print("  No valid image source available, skipping image-based properties.")
 
         # Estimate height when API key is available or local cache is present
         height = None
@@ -358,6 +376,7 @@ def _extract_building_data_core(
                 image=image,
                 camera_parameters=camera_parameters_dictionary,
                 height_mode=height_mode,
+                provider=provider
             )
         elif image_key and has_image:
             if verbose:
@@ -371,6 +390,7 @@ def _extract_building_data_core(
                 image=image,
                 camera_parameters=camera_parameters_dictionary,
                 height_mode=height_mode,
+                provider=provider
             )
 
 
@@ -407,7 +427,7 @@ def _extract_building_data_core(
                     camera_parameters = camera_parameters,
                     footprint = polygon,
                     verbose = verbose,
-                    building_height = height,
+                    height = height,
                     return_percentages_and_areas = True,
                     restrict_calculations_to_mask=False
                 )
@@ -428,12 +448,12 @@ def _extract_building_data_core(
         # Extract properties
         props = extract_building_properties(
             building_id=building_id,
-            polygon=polygon,
+            footprint=polygon,
             all_buildings=all_polygons,
             neighbor_radius=neighbor_radius,
             crs=crs,
             street_view_image=image,
-            height_value=height,
+            svi_height=height,
             verbose=verbose,
             material_percentages = percentages_dict,
             material_areas = areas_dict,
@@ -445,7 +465,7 @@ def _extract_building_data_core(
     # Format output
     return _format_output(results, gdf, output_format)
 
-def _load_geojson_to_gdf(source: str | Path | dict) -> gpd.GeoDataFrame:
+def _load_geojson_to_gdf(source: str | Path | dict| gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Load GeoJSON from path or dict into GeoDataFrame."""
     if isinstance(source, dict):
         # Direct GeoJSON dict
@@ -458,6 +478,10 @@ def _load_geojson_to_gdf(source: str | Path | dict) -> gpd.GeoDataFrame:
             return gpd.GeoDataFrame(geometry=[shape(source)])
         else:
             raise ValueError(f"Unsupported GeoJSON type: {source.get('type')}")
+    
+    elif isinstance(source, gpd.GeoDataFrame):
+        return source
+    
     else:
         # File path
         path = Path(source)
@@ -582,7 +606,8 @@ def _estimate_height(
         all_buildings=None,
         image = None,
         camera_parameters: dict[str, Any] | None = None,
-        height_mode: HeightMode = "raw",
+        height_mode: HeightMode = "svi",
+        provider: ProviderType = "google_street_view",
 ) -> float | None:
     from imageable._features.height.building_height import (
         HeightEstimationParameters,
@@ -592,10 +617,15 @@ def _estimate_height(
     )
     from imageable._images.camera.camera_parameters import CameraParameters as GSVCameraParameters
 
+    if(provider != "google_street_view" and height_mode in ("svi", "cluster_then_predict")):
+        if(verbose):
+            print(f"  Height estimation is currently only supported for Google Street View imagery. Skipping height estimation.")
+        return None
+
     try:
         params = HeightEstimationParameters(
             gsv_api_key=api_key,
-            building_polygon=polygon,
+            footprint=polygon,
             verbose=verbose,
         )
 
@@ -639,15 +669,19 @@ def _estimate_height(
         else:
             raw_height = building_height_from_single_view(params)
 
-        if height_mode == "raw":
+        if height_mode == "svi":
             return raw_height
-
-        return corrected_height_from_single_view(
-            params,
-            params.building_label,
-            all_buildings=getattr(params, "all_buildings", None) or [],
-            verbose=verbose,
-        )
+        elif height_mode == "cluster_then_predict":
+            return corrected_height_from_single_view(
+                params,
+                params.building_label,
+                all_buildings=getattr(params, "all_buildings", None) or [],
+                verbose=verbose,
+            )
+        elif height_mode == "footprint_based":
+            if verbose:
+                print("Footprint-based ")
+            return None
     except Exception as e:
         if verbose:
             print("_estimate_height error:", e)

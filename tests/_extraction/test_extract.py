@@ -89,7 +89,7 @@ class TestExtractBuildingProperties:
         """Test extraction with just polygon (no neighbors, no image)."""
         props = extract_building_properties(
             building_id="test_001",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
         )
 
         assert isinstance(props, BuildingProperties)
@@ -106,7 +106,7 @@ class TestExtractBuildingProperties:
 
         props = extract_building_properties(
             building_id="test_002",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             all_buildings=all_buildings,
             neighbor_radius=1000.0,
         )
@@ -119,8 +119,8 @@ class TestExtractBuildingProperties:
         """Test extraction with pre-calculated height."""
         props = extract_building_properties(
             building_id="test_003",
-            polygon=simple_polygon,
-            height_value=25.5,
+            footprint=simple_polygon,
+            svi_height=25.5,
         )
 
         assert props.building_height == 25.5
@@ -131,7 +131,7 @@ class TestExtractBuildingProperties:
 
         props = extract_building_properties(
             building_id="test_004",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             material_percentages=materials,
         )
 
@@ -141,7 +141,7 @@ class TestExtractBuildingProperties:
         """Test extraction with image and building mask."""
         props = extract_building_properties(
             building_id="test_005",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             street_view_image=mock_image,
             building_mask=mock_mask,
         )
@@ -162,7 +162,7 @@ class TestExtractBuildingProperties:
 
         props = extract_building_properties(
             building_id="test_006",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             street_view_image=mock_image,
             building_mask=mock_mask,
             window_mask=window_mask,
@@ -179,7 +179,7 @@ class TestExtractBuildingProperties:
         """Test that verbose mode prints progress."""
         props = extract_building_properties(
             building_id="test_007",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             verbose=True,
         )
 
@@ -190,7 +190,7 @@ class TestExtractBuildingProperties:
         """Test extraction with different CRS."""
         props = extract_building_properties(
             building_id="test_008",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             crs=4326,
         )
 
@@ -203,13 +203,13 @@ class TestExtractBuildingProperties:
 
         props = extract_building_properties(
             building_id="full_test",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             all_buildings=all_buildings,
             neighbor_radius=1000.0,
             crs=4326,
             street_view_image=mock_image,
             building_mask=mock_mask,
-            height_value=20.0,
+            svi_height=20.0,
             material_percentages=materials,
             verbose=False,
         )
@@ -405,7 +405,7 @@ class TestEdgeCases:
         """Test extraction with empty neighbors list."""
         props = extract_building_properties(
             building_id="empty_test",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             all_buildings=[],
         )
 
@@ -415,7 +415,7 @@ class TestEdgeCases:
         """Test extraction with None image."""
         props = extract_building_properties(
             building_id="none_image",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             street_view_image=None,
         )
 
@@ -426,7 +426,7 @@ class TestEdgeCases:
         """Test that image without mask doesn't extract image features."""
         props = extract_building_properties(
             building_id="no_mask",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
             street_view_image=mock_image,
             building_mask=None,
         )
@@ -438,7 +438,7 @@ class TestEdgeCases:
         """Test that string building IDs work."""
         props = extract_building_properties(
             building_id="building_abc_123",
-            polygon=simple_polygon,
+            footprint=simple_polygon,
         )
 
         assert props.building_id == "building_abc_123"
@@ -447,7 +447,7 @@ class TestEdgeCases:
         """Test that integer building IDs are handled."""
         props = extract_building_properties(
             building_id=42,
-            polygon=simple_polygon,
+            footprint=simple_polygon,
         )
 
         assert props.building_id == 42
@@ -463,7 +463,7 @@ class TestEdgeCases:
 
         props = extract_building_properties(
             building_id="tiny",
-            polygon=tiny_polygon,
+            footprint=tiny_polygon,
         )
 
         assert props.projected_area >= 0

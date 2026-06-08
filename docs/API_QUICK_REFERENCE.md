@@ -210,7 +210,7 @@ for footprint in footprints:
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `key` | str | required | Google Street View API key |
-| `building_footprint` | Polygon | required | Building footprint geometry |
+| `footprint` | Polygon | required | Building footprint geometry |
 | `save_path` | str/Path | None | Directory to save image and metadata |
 | `return_metadata` | bool | True | Return camera params and metadata |
 | `refine_camera` | bool | True | Refine camera for quality |

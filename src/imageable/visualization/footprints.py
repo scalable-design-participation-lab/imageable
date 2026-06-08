@@ -32,9 +32,8 @@ def _compute_view_state(geojson: dict) -> pdk.ViewState:
         bearing=0,
     )
 
-
 def visualize_heights(
-    geojson: str,
+    path_geojson: str|dict,
     height_column: str = "building_heights",
     cmap=None,
     elevation_scale: float = 1.0,
@@ -43,7 +42,7 @@ def visualize_heights(
     view_state: pdk.ViewState = None,
     default_color: List[int] = [200, 200, 200],
 ) -> pdk.Deck:
-    data = _load_geojson(geojson)
+    data = _load_geojson(path_geojson)
 
     values = []
     for feature in data.get("features", []):
@@ -121,7 +120,7 @@ def visualize_heights(
 
 
 def visualize_materials(
-    geojson: dict,
+    path_geojson: str|dict,
     cmap = None,
     material_dict_column: str = "material_percentages",
     material_column_names: List[str] | None = None,
@@ -178,7 +177,7 @@ def visualize_materials(
     paths_building_images:List[str] = None
 ) -> pdk.Deck:
     #Open the data
-    data = _load_geojson(geojson)
+    data = _load_geojson(path_geojson)
     material_order = default_material_names
     if cmap is not None:
         material_colors = []
