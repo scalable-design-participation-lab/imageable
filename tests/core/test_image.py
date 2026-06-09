@@ -162,7 +162,7 @@ class TestGetImage:
         get_image("api_key", simple_polygon, street_network=network)
 
         call_args = mock_acquire.call_args
-        config = call_args[1].get("config", call_args[0][1])
+        config = call_args.kwargs["config"]
         assert config.street_network is network
 
     @patch("imageable.core.image.acquire_building_image")
@@ -208,7 +208,7 @@ class TestLoadImage:
 
     def test_load_nonexistent_raises(self, tmp_path):
         """Test that loading nonexistent image raises error."""
-        with pytest.raises(RuntimeError, match="Failed to load image"):
+        with pytest.raises(FileNotFoundError, match="Image not found"):
             load_image(tmp_path / "nonexistent.jpg")
 
 

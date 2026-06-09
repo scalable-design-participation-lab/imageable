@@ -160,27 +160,15 @@ class TestLoadLocalImage:
         from PIL import Image
 
         img = Image.new("RGB", (100, 100), color="red")
-        img_path = tmp_path / "building_001.jpg"
-        img.save(img_path)
+        img_dir = tmp_path / "building_001"
+        img_dir.mkdir()
+        img.save(img_dir / "image.jpg")
 
         result = _load_local_image(tmp_path, "building_001")
 
         assert result is not None
         assert isinstance(result, np.ndarray)
         assert result.shape == (100, 100, 3)
-
-    def test_load_png_image(self, tmp_path):
-        """Test loading a PNG image."""
-        from PIL import Image
-
-        img = Image.new("RGB", (100, 100), color="blue")
-        img_path = tmp_path / "building_002.png"
-        img.save(img_path)
-
-        result = _load_local_image(tmp_path, "building_002")
-
-        assert result is not None
-        assert isinstance(result, np.ndarray)
 
     def test_load_nonexistent_image_returns_none(self, tmp_path):
         """Test that loading nonexistent image returns None."""

@@ -1,7 +1,8 @@
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
+import pytest
 
-from imageable._utils.geometry.polygons import get_polygon_edge_midpoints, get_polygon_outward_vectors, get_signed_area
+from imageable._utils.geometry.polygons import get_polygon_edge_midpoints, get_polygon_outward_vectors, get_signed_area, get_convex_hull, get_minimum_area_parallelogram
 
 
 def test_signed_area():
@@ -68,3 +69,26 @@ def test_polygon_outward_vectors():
 
     assert len(equal_conditions) == len(expected_vectors)
     assert all(equal_conditions)
+
+
+
+def test_convex_hull():
+    points = [(0, 0), (2, 0), (2, 2), (0, 2), (1, 1)]
+    hull = get_convex_hull(points)
+
+    poly = Polygon(hull)
+    assert all(poly.covers(Point(p)) for p in points)
+
+
+def test_min_parallelogram_of_square_is_the_square():
+    square = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    corners = get_minimum_area_parallelogram(square)
+
+    poly = Polygon([tuple(c) for c in corners[:4]])
+    assert poly.area == pytest.approx(1.0)
+
+def test_result_is_a_parallelogram():
+    pts = [(0, 0), (3, 0), (4, 2), (1, 2)]  
+    c = get_minimum_area_parallelogram(pts)
+
+    np.testing.assert_allclose(c[0] + c[2], c[1] + c[3]) 

@@ -141,7 +141,7 @@ def get_image(
         street_network=street_network,
     )
 
-    result = acquire_building_image(footprint, config)
+    result = acquire_building_image(footprint, config = config)
 
     if not result.is_valid:
         raise RuntimeError("Failed to acquire image for building footprint")
