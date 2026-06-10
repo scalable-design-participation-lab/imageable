@@ -7,11 +7,11 @@ with automatic camera parameter refinement to ensure the full façade is visible
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import json
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
@@ -159,10 +159,7 @@ def acquire_building_image(
         overwrite_images=config.overwrite,
         confidence_detection=config.confidence_threshold,
     )
-    if len(adjust_result) == 4:
-        camera_params, refinement_success, image, _last_metadata = adjust_result
-    else:
-        camera_params, refinement_success, image = adjust_result
+    camera_params, refinement_success, image, _last_metadata = adjust_result
 
     metadata = {
         "refinement_iterations": config.max_refinement_iterations,
@@ -296,7 +293,7 @@ def load_image_with_metadata(
 
     if Path(metadata_path).exists():
         try:
-            with open(metadata_path, "r") as f:
+            with open(metadata_path) as f:
                 metadata = json.load(f)
 
             cam_dict = metadata.get("camera_parameters", {})

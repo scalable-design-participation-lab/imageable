@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -7,7 +8,7 @@ from sklearn.cluster import DBSCAN
 class LineClassifier:
     """Line classification based on vanishing points and building area."""
 
-    def classify_with_vpts(self, n1: np.ndarray, n2: np.ndarray, vpt: np.ndarray, config: dict) -> bool:
+    def classify_with_vpts(self, n1: np.ndarray, n2: np.ndarray, vpt: np.ndarray, config: dict[str, Any]) -> bool:
         """From lineClassification.py lines 15-51."""
         flag = False
         t_angle = float(config["LINE_CLASSIFY"]["AngleThres"])
@@ -37,7 +38,7 @@ class LineClassifier:
         return flag
 
     def check_if_line_lies_in_building_area(
-        self, seg_img: np.ndarray, a: np.ndarray, b: np.ndarray, config: dict
+        self, seg_img: np.ndarray, a: np.ndarray, b: np.ndarray, config: dict[str, Any]
     ) -> bool:
         """From lineClassification.py lines 54-104."""
         middle = (a + b) / 2.0
@@ -61,14 +62,14 @@ class LineClassifier:
         point_check_list = np.vstack([point_check_list, middle])
         point_check_list = np.vstack([point_check_list, middle - ppd_dir])
         point_check_list = np.vstack([point_check_list, middle + ppd_dir])
-        point_check_list = [v for v in point_check_list if not np.isnan(v).any()]
+        filtered_points = [v for v in point_check_list if not np.isnan(v).any()]
 
         total_num = 0
         local_num = 0
         rows, cols = seg_img.shape
         flag = True
 
-        for pcl in point_check_list:
+        for pcl in filtered_points:
             total_num = total_num + 1
             y_int = int(pcl[0] + 0.5)
             x_int = int(pcl[1] + 0.5)
@@ -85,7 +86,9 @@ class LineClassifier:
                 local_num = 0
         return flag
 
-    def cluster_lines_with_centers(self, ht_set: list, config: dict, using_height: bool = False) -> list | None:
+    def cluster_lines_with_centers(
+        self, ht_set: list[Any], config: dict[str, Any], using_height: bool = False
+    ) -> list[Any] | None:
         """From lineClassification.py lines 436-478."""
         feature_points = []
         if using_height:
@@ -94,12 +97,12 @@ class LineClassifier:
         else:
             for _, a, b, *_ in ht_set:
                 feature_points.append([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])
-        feature_points = np.asarray(feature_points)
+        feature_points_arr = np.asarray(feature_points)
 
         max_dbscan_dist = float(config["HEIGHT_MEAS"]["MaxDBSANDist"])
 
         try:
-            clustering = DBSCAN(eps=max_dbscan_dist, min_samples=1).fit(feature_points)
+            clustering = DBSCAN(eps=max_dbscan_dist, min_samples=1).fit(feature_points_arr)
         except (ValueError, KeyError) as e:
             print(f"Error in clustering {e}")
             return None
@@ -135,7 +138,8 @@ class LineClassifier:
 
     @staticmethod
     def intersection(
-        l1: tuple[float, float, float] | np.ndarray | list, l2: tuple[float, float, float] | np.ndarray | list
+        l1: tuple[float, float, float] | np.ndarray | list[float],
+        l2: tuple[float, float, float] | np.ndarray | list[float],
     ) -> tuple[float, float] | bool:
         """Find intersection point of two lines defined by their coefficients."""
         d = l1[0] * l2[1] - l1[1] * l2[0]

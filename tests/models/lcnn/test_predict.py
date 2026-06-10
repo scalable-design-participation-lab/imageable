@@ -36,7 +36,7 @@ def make_dummy_model(dummy_lines, dummy_scores) -> Any:
     {"preds": {"lines": dummy_lines, "score": dummy_scores}}
     """
 
-    class Dummy(torch.nn.Module):  # type: ignore[misc]
+    class Dummy(torch.nn.Module):
         def __init__(self) -> None:
             super().__init__()
 

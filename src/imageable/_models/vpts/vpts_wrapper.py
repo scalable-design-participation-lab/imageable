@@ -11,7 +11,6 @@ class VPTSWrapper(BaseModelWrapper):
 
     def __init__(self) -> None:
         """Initialize the VPTSWrapper class."""
-        super().__init__()
         self.model_name = "vpts"
         self.load_model()
 
@@ -64,10 +63,10 @@ class VPTSWrapper(BaseModelWrapper):
         return {"vpts_3d": vpts_3d_ordered, "vpts_2d": vpts_2d_ordered, "K": K}
 
     def predict(
-        self, image: np.ndarray, FOV: float = 90.0, seed: int = None, length_threshold: float = 60
+        self, image: np.ndarray, FOV: float = 90.0, seed: int | None = None, length_threshold: float = 60
     ) -> dict[str, Any]:
         """
-        Obtains the vanishing points in 3d and 2d using the lu-vp method.
+        Obtain the vanishing points in 3d and 2d using the lu-vp method.
 
         Parameters
         ----------

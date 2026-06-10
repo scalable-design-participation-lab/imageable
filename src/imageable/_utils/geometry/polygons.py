@@ -30,7 +30,7 @@ def get_signed_area(polygon: Polygon) -> float:
     return area / 2.0
 
 
-def get_polygon_edge_midpoints(polygon: Polygon) -> list[tuple[float]]:
+def get_polygon_edge_midpoints(polygon: Polygon) -> list[tuple[float, float]]:
     """
     Compute the midpoints of the edges of a polygon.
 
@@ -56,7 +56,7 @@ def get_polygon_edge_midpoints(polygon: Polygon) -> list[tuple[float]]:
     return midpoints
 
 
-def get_polygon_outward_vectors(polygon: Polygon) -> list[tuple[float]]:
+def get_polygon_outward_vectors(polygon: Polygon) -> list[tuple[float, float]]:
     """
     Compute the orthogonal outward vectors to a polygon's edges.
 
@@ -137,7 +137,9 @@ def get_convex_hull(points: list[tuple[float, float]], close: bool = False) -> l
     return stack
 
 
-def get_minimum_area_parallelogram(hull_points: list[tuple[float, float]], eps: float = 1e-12):
+def get_minimum_area_parallelogram(
+        hull_points: list[tuple[float, float]],
+        eps: float = 1e-12)->list[np.ndarray] | None:
     """
     Compute the minimum area enclosing parallelogram of a convex polygon. The algorithm
     is based on the rotating calipers method.
@@ -180,12 +182,12 @@ def get_minimum_area_parallelogram(hull_points: list[tuple[float, float]], eps: 
         u = sgn * u
         dirs.append(tuple(np.round(u, 12)))
     # deduplicate
-    uniq = []
+    uniq:list[tuple[float, float]] = []
     for d in dirs:
         if not any(abs(d[0] - e[0]) < 1e-9 and abs(d[1] - e[1]) < 1e-9 for e in uniq):
             uniq.append(d)
-    dirs = [np.array(d) for d in uniq]
-    k = len(dirs)
+    dir_arrays = [np.array(d) for d in uniq]
+    k = len(dir_arrays)
 
     # degenerate: line/point -> fall back to rotated rectangle
     if k == 0:
@@ -200,23 +202,23 @@ def get_minimum_area_parallelogram(hull_points: list[tuple[float, float]], eps: 
         pn = H @ u
         a0, a1 = pu.min(), pu.max()
         b0, b1 = pn.min(), pn.max()
-        Cll = (-b0) * u + a0 * n
-        Clr = (-b1) * u + a0 * n
-        Cur = (-b1) * u + a1 * n
-        Cul = (-b0) * u + a1 * n
-        return [Cll, Clr, Cur, Cul, Cll]
+        lower_left_corner = (-b0) * u + a0 * n
+        lower_right_corner = (-b1) * u + a0 * n
+        upper_right_corner = (-b1) * u + a1 * n
+        upper_left_corner = (-b0) * u + a1 * n
+        return [lower_left_corner, lower_right_corner, upper_right_corner, upper_left_corner, lower_left_corner]
 
     best_area = float("inf")
     best_corners = None
 
     for i in range(k):
-        u = dirs[i]
+        u = dir_arrays[i]
         nu = np.array([-u[1], u[0]])
         proj_nu = H @ nu
         a0, a1 = proj_nu.min(), proj_nu.max()
 
         for j in range(i + 1, k):
-            v = dirs[j]
+            v = dir_arrays[j]
             s = u[0] * v[1] - u[1] * v[0]
             if abs(s) < 1e-9:
                 continue
@@ -231,20 +233,20 @@ def get_minimum_area_parallelogram(hull_points: list[tuple[float, float]], eps: 
                 # with x = a*u + b*v  -> a = -beta/s, b = alpha/s
                 inv_s = 1.0 / s
 
-                def corner(alpha, beta):
-                    return (-beta * inv_s) * u + (alpha * inv_s) * v
+                def corner(alpha:float, beta:float)->np.ndarray:
+                    return np.asarray((-beta * inv_s) * u + (alpha * inv_s) * v)
 
-                Cll = corner(a0, b0)
-                Clr = corner(a0, b1)
-                Cur = corner(a1, b1)
-                Cul = corner(a1, b0)
+                lower_left_corner = corner(a0, b0)
+                lower_right_corner = corner(a0, b1)
+                upper_right_corner = corner(a1, b1)
+                upper_left_corner = corner(a1, b0)
 
                 best_area = area
-                best_corners = [Cll, Clr, Cur, Cul, Cll]
+                best_corners = [lower_left_corner, lower_right_corner, upper_right_corner, upper_left_corner, lower_left_corner]
 
     # very unlikely, but keep fallback
     if best_corners is None:
-        u = dirs[0]
+        u = dir_arrays[0]
         nu = np.array([-u[1], u[0]])
         proj_nu = H @ nu
         a0, a1 = proj_nu.min(), proj_nu.max()
@@ -255,13 +257,13 @@ def get_minimum_area_parallelogram(hull_points: list[tuple[float, float]], eps: 
         s = u[0] * v[1] - u[1] * v[0]
         inv_s = 1.0 / s
 
-        def corner(alpha, beta):
-            return (-beta * inv_s) * u + (alpha * inv_s) * v
+        def corner(alpha:float, beta:float)->np.ndarray:
+            return np.asarray((-beta * inv_s) * u + (alpha * inv_s) * v)
 
-        Cll = corner(a0, b0)
-        Clr = corner(a0, b1)
-        Cur = corner(a1, b1)
-        Cul = corner(a1, b0)
-        best_corners = [Cll, Clr, Cur, Cul, Cll]
+        lower_left_corner = corner(a0, b0)
+        lower_right_corner = corner(a0, b1)
+        upper_right_corner = corner(a1, b1)
+        upper_left_corner = corner(a1, b0)
+        best_corners = [lower_left_corner, lower_right_corner, upper_right_corner, upper_left_corner, lower_left_corner]
 
     return best_corners

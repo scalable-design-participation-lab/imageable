@@ -2,12 +2,15 @@
 Tests for FootprintCalculator and footprint property extraction.
 """
 
-import pytest
 import numpy as np
+import pytest
 from shapely.geometry import Polygon
 
-from imageable._extraction.footprint import FootprintCalculator, extract_footprint_properties, find_neighboring_buildings
-
+from imageable._extraction.footprint import (
+    FootprintCalculator,
+    extract_footprint_properties,
+    find_neighboring_buildings,
+)
 
 # ==================== FIXTURES ====================
 

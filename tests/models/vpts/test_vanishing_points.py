@@ -1,7 +1,10 @@
 
-from imageable._models.vpts.vpts_wrapper import VPTSWrapper
 import numpy as np
 from PIL import Image, ImageDraw
+
+from imageable._models.vpts.vpts_wrapper import VPTSWrapper
+
+
 def test_vpts_wrapper_initialization():
     vpts_wrapper = VPTSWrapper()
     assert vpts_wrapper.model_name == "vpts"
@@ -15,11 +18,11 @@ def _make_mock_building(
     bg_color=(200, 220, 255),
     front_color=(210, 210, 210),
     side_color=(180, 180, 180),
-):
+)-> np.ndarray:
     """
     front_pts: 4 points (tl, tr, br, bl) of the front face in image coords
     side_pts: 4 points (tl, tr, br, bl) of the side face (in perspective)
-    returns a PIL.Image
+    returns a mock image of a building.
     """
 
     img = Image.new("RGB", img_size, bg_color)

@@ -1,7 +1,6 @@
 """Tests for the image acquisition module."""
 
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -10,9 +9,9 @@ from shapely.geometry import Polygon
 from imageable._images.acquisition import (
     ImageAcquisitionConfig,
     ImageAcquisitionResult,
+    _load_from_cache,
     acquire_building_image,
     load_image_with_metadata,
-    _load_from_cache,
 )
 from imageable._images.camera.camera_parameters import CameraParameters
 
@@ -23,7 +22,7 @@ class TestImageAcquisitionConfig:
     def test_default_values(self):
         """Test default configuration values."""
         config = ImageAcquisitionConfig(api_key="test_key")
-        
+
         assert config.api_key == "test_key"
         assert config.save_directory is None
         assert config.save_intermediate is False
@@ -45,7 +44,7 @@ class TestImageAcquisitionConfig:
             min_sky_ratio=0.2,
             max_refinement_iterations=10,
         )
-        
+
         assert config.api_key == "my_key"
         assert config.save_directory == "/tmp/images"
         assert config.save_intermediate is True
@@ -83,10 +82,11 @@ class TestImageAcquisitionResult:
             camera_params=sample_camera_params,
             success=True,
         )
-        
+
         assert result.is_valid is True
         assert result.success is True
         assert result.from_cache is False
+        assert result.image is not None
         assert result.image.shape == (640, 640, 3)
 
     def test_invalid_result(self, sample_camera_params):
@@ -96,7 +96,7 @@ class TestImageAcquisitionResult:
             camera_params=sample_camera_params,
             success=False,
         )
-        
+
         assert result.is_valid is False
         assert result.success is False
 
@@ -108,7 +108,7 @@ class TestImageAcquisitionResult:
             success=True,
             from_cache=True,
         )
-        
+
         assert result.is_valid is True
         assert result.from_cache is True
 
@@ -132,7 +132,7 @@ class TestAcquireBuildingImage:
         with patch("imageable._images.acquisition.CameraParametersRefiner") as mock:
             mock_instance = Mock()
             mock.return_value = mock_instance
-            
+
             # Configure mock to return successful result
             mock_camera = CameraParameters(
                 longitude=-71.05,
@@ -144,16 +144,16 @@ class TestAcquireBuildingImage:
                 height=640,
             )
             mock_image = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
-            mock_instance.adjust_parameters.return_value = (mock_camera, True, mock_image)
-            
+            mock_instance.adjust_parameters.return_value = (mock_camera, True, mock_image, None)
+
             yield mock_instance
 
     def test_successful_acquisition(self, sample_polygon, mock_refiner):
         """Test successful image acquisition."""
         config = ImageAcquisitionConfig(api_key="test_key")
-        
+
         result = acquire_building_image(sample_polygon, config)
-        
+
         assert result.is_valid is True
         assert result.success is True
         assert result.from_cache is False
@@ -165,9 +165,9 @@ class TestAcquireBuildingImage:
             api_key="test_key",
             save_directory=str(tmp_path),
         )
-        
+
         result = acquire_building_image(sample_polygon, config)
-        
+
         assert result.is_valid is True
         # Verify refiner was called with pictures_directory
         call_kwargs = mock_refiner.adjust_parameters.call_args[1]
@@ -182,13 +182,13 @@ class TestAcquireBuildingImage:
             max_refinement_iterations=10,
             confidence_threshold=0.5,
         )
-        
+
         acquire_building_image(sample_polygon, config)
-        
+
         # Check that ratios were set on refiner
         assert mock_refiner.MIN_FLOOR_RATIO == 0.01
         assert mock_refiner.MIN_SKY_RATIO == 0.2
-        
+
         # Check call arguments
         call_kwargs = mock_refiner.adjust_parameters.call_args[1]
         assert call_kwargs["max_number_of_images"] == 10
@@ -200,11 +200,12 @@ class TestAcquireBuildingImage:
             CameraParameters(longitude=0, latitude=0),
             False,
             None,
+            None,
         )
-        
+
         config = ImageAcquisitionConfig(api_key="test_key")
         result = acquire_building_image(sample_polygon, config)
-        
+
         assert result.is_valid is False
         assert result.success is False
 
@@ -217,6 +218,7 @@ class TestAcquireBuildingImage:
                 CameraParameters(longitude=-71.05, latitude=42.36),
                 True,
                 np.zeros((10, 10, 3), dtype=np.uint8),
+                None,
             )
             network = object()
             config = ImageAcquisitionConfig(api_key="test_key", street_network=network)
@@ -232,13 +234,14 @@ class TestLoadFromCache:
     def test_cache_hit(self, tmp_path):
         """Test loading from cache when files exist."""
         import json
+
         from PIL import Image
-        
+
         # Create test image
         image_path = tmp_path / "image.jpg"
         test_image = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
         Image.fromarray(test_image).save(image_path)
-        
+
         # Create test metadata
         metadata_path = tmp_path / "metadata.json"
         metadata = {
@@ -254,9 +257,9 @@ class TestLoadFromCache:
         }
         with open(metadata_path, "w") as f:
             json.dump(metadata, f)
-        
+
         result = _load_from_cache(tmp_path)
-        
+
         assert result is not None
         assert result.is_valid is True
         assert result.from_cache is True
@@ -266,19 +269,19 @@ class TestLoadFromCache:
     def test_cache_miss_no_files(self, tmp_path):
         """Test cache miss when files don't exist."""
         result = _load_from_cache(tmp_path)
-        
+
         assert result is None
 
     def test_cache_miss_partial_files(self, tmp_path):
         """Test cache miss when only image exists."""
         from PIL import Image
-        
+
         image_path = tmp_path / "image.jpg"
         test_image = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
         Image.fromarray(test_image).save(image_path)
-        
+
         result = _load_from_cache(tmp_path)
-        
+
         assert result is None
 
 
@@ -288,13 +291,14 @@ class TestLoadImageWithMetadata:
     def test_load_with_metadata(self, tmp_path):
         """Test loading image with metadata file."""
         import json
+
         from PIL import Image
-        
+
         # Create test image
         image_path = tmp_path / "image.jpg"
         test_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
         Image.fromarray(test_image).save(image_path)
-        
+
         # Create metadata
         metadata_path = tmp_path / "metadata.json"
         metadata = {
@@ -306,24 +310,26 @@ class TestLoadImageWithMetadata:
         }
         with open(metadata_path, "w") as f:
             json.dump(metadata, f)
-        
+
         result = load_image_with_metadata(image_path)
-        
+
         assert result.is_valid is True
+        assert result.image is not None
         assert result.image.shape == (480, 640, 3)
         assert result.camera_params.fov == 90
 
     def test_load_without_metadata(self, tmp_path):
         """Test loading image without metadata file (uses defaults)."""
         from PIL import Image
-        
+
         image_path = tmp_path / "image.jpg"
         test_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
         Image.fromarray(test_image).save(image_path)
-        
+
         result = load_image_with_metadata(image_path)
-        
+
         assert result.is_valid is True
+        assert result.image is not None
         assert result.image.shape == (480, 640, 3)
         # Should use default camera params
         assert result.camera_params.fov == 90
@@ -336,20 +342,21 @@ class TestLoadImageWithMetadata:
     def test_load_with_explicit_metadata_path(self, tmp_path):
         """Test loading with explicitly specified metadata path."""
         import json
+
         from PIL import Image
-        
+
         # Create image in one location
         image_path = tmp_path / "images" / "test.jpg"
         image_path.parent.mkdir(parents=True)
         test_image = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
         Image.fromarray(test_image).save(image_path)
-        
+
         # Create metadata in different location
         metadata_path = tmp_path / "meta" / "info.json"
         metadata_path.parent.mkdir(parents=True)
         with open(metadata_path, "w") as f:
             json.dump({"camera_parameters": {"fov": 120}}, f)
-        
+
         result = load_image_with_metadata(image_path, metadata_path)
-        
+
         assert result.camera_params.fov == 120

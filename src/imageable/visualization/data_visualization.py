@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 DRACULA_BG = "#282a36"
 DRACULA_FG = "#f8f8f2"
@@ -20,9 +22,9 @@ DRACULA_PALETTE = [
 ]
 
 
-def _natural_sort_key(value: str) -> tuple:
+def _natural_sort_key(value: str) -> tuple[int | str, ...]:
     parts = re.split(r"(\d+)", str(value))
-    key = []
+    key: list[int | str] = []
     for part in parts:
         if part.isdigit():
             key.append(int(part))
@@ -72,7 +74,7 @@ def plot_grouped_distribution_bars(
     use_short_xticks: bool = False,
     label_mode: Literal["all", "delta_vs_best", "none"] = "all",
     label_pad_frac: float = 0.04,
-    error_mode: Literal[None, "std", "ci"] = None,
+    error_mode: Literal["std", "ci"] | None = None,
     rmse_std: Mapping[str, Sequence[float]] | Sequence[Sequence[float]] | np.ndarray | None = None,
     rmse_ci_low: Mapping[str, Sequence[float]] | Sequence[Sequence[float]] | np.ndarray | None = None,
     rmse_ci_high: Mapping[str, Sequence[float]] | Sequence[Sequence[float]] | np.ndarray | None = None,
@@ -81,8 +83,8 @@ def plot_grouped_distribution_bars(
     group_labels: Mapping[str, str] | None = None,
     figsize: tuple[float, float] = (8.8, 4.6),
     show: bool = True,
-    dpi = 300
-):
+    dpi:int = 300
+)->tuple[Figure, Axes]:
     """
     Grouped distribution bars with simple array/dict inputs.
 
@@ -157,7 +159,7 @@ def plot_grouped_distribution_bars(
     value_matrix = value_matrix[:, order_idx]
     if std_matrix is not None:
         std_matrix = std_matrix[:, order_idx]
-    if ci_low_matrix is not None:
+    if ci_low_matrix is not None and ci_high_matrix is not None:
         ci_low_matrix = ci_low_matrix[:, order_idx]
         ci_high_matrix = ci_high_matrix[:, order_idx]
     if counts is not None:
@@ -171,7 +173,7 @@ def plot_grouped_distribution_bars(
     # Tick labels
     if use_short_xticks:
         tick_labels = [f"G{i+1}" for i in range(len(pretty_groups))]
-        short_map = dict(zip(tick_labels, pretty_groups))
+        short_map = dict(zip(tick_labels, pretty_groups, strict=False))
     else:
         tick_labels = pretty_groups
         short_map = None
@@ -333,8 +335,8 @@ def plot_styled_histogram(
     ylim: tuple[float, float] | None = None,
     savepath: str | None = None,
     show: bool = True,
-    dpi = 300,
-):
+    dpi:int = 300,
+)->tuple[Figure, Axes]:
     """Plot a histogram with the same high-readability style used in notebooks."""
     arr = np.asarray(values, dtype=float)
     if arr.size == 0:

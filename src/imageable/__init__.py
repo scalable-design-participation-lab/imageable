@@ -34,28 +34,25 @@ models
 
 from __future__ import annotations
 
+# Data classes
+from imageable._extraction.building import BuildingProperties
 
 # Version - import first as it has no dependencies
 from imageable._version import __version__
-
 from imageable.core.building_data import (
+    get_building_data_from_file,
     get_building_data_from_gdf,
     get_building_data_from_geojson,
-    get_building_data_from_file,
 )
-
-# Data classes
-from imageable._extraction.building import BuildingProperties
 
 # Single building / image utilities
 from imageable.core.dataset import get_dataset
 from imageable.core.image import get_image
 
-
 __all__ = [
     # Main API (new)
     "get_building_data_from_gdf",
-    "get_building_data_from_geojson", 
+    "get_building_data_from_geojson",
     "get_building_data_from_file",
     # Single building
     "get_dataset",

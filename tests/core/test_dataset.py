@@ -1,13 +1,13 @@
 """Tests for core.dataset module - high-level dataset extraction API."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from shapely.geometry import Polygon
 
-from imageable.core.dataset import get_dataset
 from imageable._extraction.building import BuildingProperties
+from imageable.core.dataset import get_dataset
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 from shapely import Polygon
+
 from imageable._extraction.extract import extract_building_properties
 
 
@@ -61,7 +62,7 @@ def _get_mock_neighbors() -> list[Polygon]:
 
 def test_footprint_features():
     # Add more tests for footprint features as needed
-    index_polygon = 0
+    index_polygon = "0"
     polygon = _get_mock_polygon()
     neighbor_polygons = _get_mock_neighbors()
 

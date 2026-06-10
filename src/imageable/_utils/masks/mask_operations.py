@@ -18,8 +18,8 @@ def get_mask_centroid(mask: np.ndarray) -> tuple[float, float]:
     n = np.size(mask, 0)
     m = np.size(mask, 1)
 
-    centroid_x = 0
-    centroid_y = 0
+    centroid_x:float = 0
+    centroid_y:float = 0
     count = 0
     for i in range(n):
         for j in range(m):
@@ -34,7 +34,7 @@ def get_mask_centroid(mask: np.ndarray) -> tuple[float, float]:
     return (centroid_x, centroid_y)
 
 
-def get_mask_area(mask: np.ndarray) -> int:
+def get_mask_area(mask: np.ndarray) -> float:
     """
     Get the area (number of pixels) of a binary mask.
 
@@ -48,7 +48,8 @@ def get_mask_area(mask: np.ndarray) -> int:
     area
         The area (number of pixels) of the mask
     """
-    return np.sum(mask)
+    mask_area = float(np.sum(mask))
+    return mask_area
 
 
 def get_mask_limits(mask: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -83,13 +84,16 @@ def get_mask_limits(mask: np.ndarray) -> tuple[int, int, int, int] | None:
 
     if min_x == float("inf"):
         return None
-
+    min_x = int(min_x)
+    min_y = int(min_y)
+    max_x = int(max_x)
+    max_y = int(max_y)
     return (min_x, min_y, max_x, max_y)
 
 
 def segment_horizontally_based_on_pixel_density(
     mask: np.ndarray, pixel_density_threshold: float = 0.15, start_x: int | None = 0
-) -> np.ndarray:
+) -> tuple[np.ndarray, int]:
     """
     Traverses a binary mask from left to right, leaving only the region from start_x to
     the column where the pixel density drops below a given threshold.
@@ -104,6 +108,8 @@ def segment_horizontally_based_on_pixel_density(
         Column index to start traversing from. Default is 0 (leftmost column).
     """
     assert len(mask.shape) == 2, "Mask must be a 2D array"
+    if(start_x is None):
+        start_x = 0
     height, width = mask.shape
     assert 0 <= start_x < width, "start_x must be within the width of the mask"
     final_column = width - 1

@@ -1,11 +1,13 @@
+
 import numpy as np
 import torch
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
+from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
+import numpy.typing as npt
 from imageable._models.base import BaseModelWrapper
-from pathlib import Path
-from huggingface_hub import hf_hub_download, try_to_load_from_cache
+
 
 class DistanceRegressorWrapper(BaseModelWrapper):
     MODEL_REPO = "urilp4669/footprint_distance_to_nearest_street"
@@ -80,7 +82,7 @@ class DistanceRegressorWrapper(BaseModelWrapper):
                 # first Linear weight in Sequential
                 first_w_key = next(k for k in state.keys() if k.endswith(".weight"))
                 in_dim_ckpt = state[first_w_key].shape[1]
-                return in_dim_ckpt == self.input_dim
+                return bool(in_dim_ckpt == self.input_dim)
             except Exception:
                 return False
 
@@ -136,11 +138,10 @@ class DistanceRegressorWrapper(BaseModelWrapper):
             assert self._y_mean is not None and self._y_std is not None
             y = y_pred_tensor * (self._y_std + 1e-8) + self._y_mean
             return y.detach().cpu().numpy()
-        elif self._target_mode == "log1p":
+        if self._target_mode == "log1p":
             y = torch.expm1(y_pred_tensor)
             return y.detach().cpu().numpy()
-        else:
-            return y_pred_tensor.detach().cpu().numpy()
+        return y_pred_tensor.detach().cpu().numpy()
 
     def predict(self, inputs: np.ndarray) -> np.ndarray:
         if not self.is_loaded():
@@ -153,8 +154,8 @@ class DistanceRegressorWrapper(BaseModelWrapper):
 
 
 def train_distance_regressor(
-    X,
-    y,
+    X:npt.ArrayLike,
+    y:npt.ArrayLike,
     wrapper: DistanceRegressorWrapper,
     epochs: int = 200,
     batch_size: int = 128,
@@ -165,33 +166,33 @@ def train_distance_regressor(
     target_mode: str = "standard",  # "standard" | "log1p" | "none"
     loss_type: str = "huber",       # "huber" | "mse" | "mae"
     loss_scale: float = 1.0         # >1.0 helps tiny targets if using "none"
-):
-    X = np.asarray(X, dtype=np.float32)
-    y = np.asarray(y, dtype=np.float32).reshape(-1)
+)-> str:
+    X_array: npt.NDArray[np.float32] = np.asarray(X, dtype=np.float32)
+    y_array: npt.NDArray[np.float32] = np.asarray(y, dtype=np.float32).reshape(-1)
 
-    mask = np.isfinite(y) & np.all(np.isfinite(X), axis=1)
-    X = X[mask]
-    y = y[mask]
+    mask = np.isfinite(y_array) & np.all(np.isfinite(X_array), axis=1)
+    X_array = X_array[mask]
+    y_array = y_array[mask]
 
     # feature normalization
-    x_mean = X.mean(axis=0, keepdims=True).astype(np.float32)
-    x_std  = X.std(axis=0, keepdims=True).astype(np.float32)
+    x_mean = X_array.mean(axis=0, keepdims=True).astype(np.float32)
+    x_std  = X_array.std(axis=0, keepdims=True).astype(np.float32)
     x_std[x_std == 0.0] = 1.0
-    Xn = (X - x_mean) / x_std
+    Xn = (X_array - x_mean) / x_std
 
     # target transform
     if target_mode == "standard":
-        y_mean = y.mean().astype(np.float32)
-        y_std  = y.std().astype(np.float32)
+        y_mean = y_array.mean().astype(np.float32)
+        y_std  = y_array.std().astype(np.float32)
         if y_std == 0.0:
             y_std = np.float32(1.0)
-        y_t = (y - y_mean) / (y_std + 1e-8)
+        y_t = (y_array - y_mean) / (y_std + 1e-8)
         y_save_mean, y_save_std = y_mean, y_std
     elif target_mode == "log1p":
-        y_t = np.log1p(y).astype(np.float32)
+        y_t = np.log1p(y_array).astype(np.float32)
         y_save_mean, y_save_std = None, None
     else:  # "none"
-        y_t = y.astype(np.float32)
+        y_t = y_array.astype(np.float32)
         y_save_mean, y_save_std = None, None
 
     X_tr, X_va, y_tr, y_va = train_test_split(Xn, y_t, test_size=val_split, random_state=seed)
@@ -214,6 +215,7 @@ def train_distance_regressor(
     assert model is not None
 
     opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn: nn.Module
     if loss_type == "huber":
         loss_fn = nn.SmoothL1Loss()
     elif loss_type == "mae":

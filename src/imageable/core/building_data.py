@@ -9,20 +9,23 @@ Provides explicit input-specific functions following the pattern:
 
 from __future__ import annotations
 
-from importlib import metadata
 import json
 from pathlib import Path
 from typing import Any, Literal
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from shapely.geometry import shape
 
 from imageable._extraction.building import BuildingProperties
 from imageable._extraction.extract import extract_building_properties
-from imageable._features.materials.building_materials import BuildingMaterialProperties, get_building_materials_segmentation 
-from imageable._images.image import CameraParameters
-import numpy as np
+from imageable._features.materials.building_materials import (
+    BuildingMaterialProperties,
+    get_building_materials_segmentation,
+)
+from imageable._images.image import CameraParameters  # type: ignore[attr-defined]
+
 # Type aliases
 OutputFormat = Literal["gdf", "geojson", "dict"]
 HeightMode = Literal["svi", "cluster_then_predict","footprint_based"]
@@ -46,7 +49,7 @@ def get_building_data_from_gdf(
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
     pictures_directory: str | Path | None = None,
     images_dir: str | Path | None = None
-) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
+) -> gpd.GeoDataFrame | dict[str, Any] | list[dict[str, Any]]:
     """
     Extract building properties from a GeoDataFrame.
 
@@ -93,6 +96,8 @@ def get_building_data_from_gdf(
     if gdf.empty:
         raise ValueError("GeoDataFrame is empty")
 
+    images_dir = Path(images_dir) if images_dir is not None else None
+
     return _extract_building_data_core(
         gdf=gdf,
         image_key=image_key,
@@ -121,7 +126,7 @@ def get_building_data_from_geojson(
     all_city_buildings_gdf: str | Path | dict[str, Any] | gpd.GeoDataFrame| None = None,
     pictures_directory: str | Path | None = None,
     images_dir: str | Path | None = None
-) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
+) -> gpd.GeoDataFrame | dict[str, Any] | list[dict[str, Any]]:
     """
     Extract building properties from GeoJSON file or dict.
 
@@ -157,6 +162,8 @@ def get_building_data_from_geojson(
     if all_city_buildings_gdf is not None:
         all_city_buildings_gdf = _load_geojson_to_gdf(all_city_buildings_gdf)
 
+    images_dir = Path(images_dir) if images_dir is not None else None
+
     return _extract_building_data_core(
         gdf=gdf,
         image_key=image_key,
@@ -182,7 +189,7 @@ def get_building_data_from_file(
     height_mode: HeightMode = "svi",
     verbose: bool = False,
     all_city_buildings_gdf: str | Path | dict[str, Any] | gpd.GeoDataFrame | None = None,
-) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
+) -> gpd.GeoDataFrame | dict[str, Any] | list[dict[str, Any]]:
     """
     Extract building properties from local footprints and pre-downloaded images.
 
@@ -259,14 +266,13 @@ def _extract_building_data_core(
     verbose: bool = False,
     all_city_buildings_gdf: gpd.GeoDataFrame | None = None,
     pictures_directory: str | Path | None = None,
-) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
+) -> gpd.GeoDataFrame | dict[str, Any] | list[dict[str, Any]]:
     """
     Core extraction logic shared by all public functions.
 
     Either image_key OR images_dir should be provided, not both.
     Height estimation runs automatically when image_key is provided.
     """
-
     # Prepare IDs
     if id_column and id_column in gdf.columns:
         ids = gdf[id_column].astype(str).tolist()
@@ -298,11 +304,7 @@ def _extract_building_data_core(
         has_image = False
         if images_dir:
             image, metadata = _load_local_image_and_metadata(images_dir, building_id)
-            if image is None:
-                image = None
-                metadata = None
-                has_image = False
-            elif not _has_valid_imagery(metadata):
+            if image is None or not _has_valid_imagery(metadata):
                 image = None
                 metadata = None
                 has_image = False
@@ -338,11 +340,7 @@ def _extract_building_data_core(
             #print("DEBUG metadata keys:", None if metadata is None else list(metadata.keys()))
             #print("DEBUG has camera_parameters?", False if metadata is None else ("camera_parameters" in metadata and metadata["camera_parameters"] is not None))
             #print("DEBUG: building", building_id, "images_dir exists?", per_building_dir.exists() if per_building_dir else None)
-            if image is None:
-                image = None
-                metadata = None
-                has_image = False
-            elif not _has_valid_imagery(metadata):
+            if image is None or not _has_valid_imagery(metadata):
                 image = None
                 metadata = None
                 has_image = False
@@ -360,9 +358,8 @@ def _extract_building_data_core(
                     image = None
                     metadata = None
                     has_image = False
-        else:
-            if(verbose):
-                print("  No valid image source available, skipping image-based properties.")
+        elif(verbose):
+            print("  No valid image source available, skipping image-based properties.")
 
         # Estimate height when API key is available or local cache is present
         height = None
@@ -371,6 +368,7 @@ def _extract_building_data_core(
             height = _estimate_height(
                 polygon,
                 "",
+                building_id=building_id,
                 verbose=verbose,
                 all_buildings=all_polygons,
                 image=image,
@@ -380,11 +378,12 @@ def _extract_building_data_core(
             )
         elif image_key and has_image:
             if verbose:
-                print(f"  Estimating height...")
+                print("  Estimating height...")
             camera_parameters_dictionary = metadata.get("camera_parameters", None) if metadata is not None else None
             height = _estimate_height(
                 polygon,
                 image_key,
+                building_id=building_id,
                 verbose=verbose,
                 all_buildings=all_polygons,
                 image=image,
@@ -401,7 +400,7 @@ def _extract_building_data_core(
         areas_dict = None
         units = None
         percentages_dict = None
-        if(not image is None and has_image):
+        if(image is not None and has_image):
             camera_parameters_dictionary = metadata.get("camera_parameters",None) if metadata is not None else None
             if(height is None or metadata is None or camera_parameters_dictionary is None):
                 building_material_properties = BuildingMaterialProperties(
@@ -434,7 +433,7 @@ def _extract_building_data_core(
 
                 materials_dictionary = get_building_materials_segmentation(building_material_properties)
                 #Verify that we have a dictionary with percentages and areas
-                if(isinstance(materials_dictionary, dict) and not materials_dictionary.get("percentages") is None and not materials_dictionary.get("areas") is None):
+                if(isinstance(materials_dictionary, dict) and materials_dictionary.get("percentages") is not None and materials_dictionary.get("areas") is not None):
                     percentages_dict = materials_dictionary.get("percentages")
                     areas_dict = materials_dictionary.get("areas")
                     units = materials_dictionary.get("areas_units", "m2")
@@ -465,32 +464,30 @@ def _extract_building_data_core(
     # Format output
     return _format_output(results, gdf, output_format)
 
-def _load_geojson_to_gdf(source: str | Path | dict| gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def _load_geojson_to_gdf(source: str | Path | dict[str, Any] | gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Load GeoJSON from path or dict into GeoDataFrame."""
     if isinstance(source, dict):
         # Direct GeoJSON dict
         if source.get("type") == "FeatureCollection":
             return gpd.GeoDataFrame.from_features(source["features"])
-        elif source.get("type") == "Feature":
+        if source.get("type") == "Feature":
             return gpd.GeoDataFrame.from_features([source])
-        elif source.get("type") in ("Polygon", "MultiPolygon"):
+        if source.get("type") in ("Polygon", "MultiPolygon"):
             # Single geometry
             return gpd.GeoDataFrame(geometry=[shape(source)])
-        else:
-            raise ValueError(f"Unsupported GeoJSON type: {source.get('type')}")
-    
-    elif isinstance(source, gpd.GeoDataFrame):
+        raise ValueError(f"Unsupported GeoJSON type: {source.get('type')}")
+
+    if isinstance(source, gpd.GeoDataFrame):
         return source
-    
-    else:
-        # File path
-        path = Path(source)
-        if not path.exists():
-            raise FileNotFoundError(f"GeoJSON file not found: {path}")
-        return gpd.read_file(path)
+
+    # File path
+    path = Path(source)
+    if not path.exists():
+        raise FileNotFoundError(f"GeoJSON file not found: {path}")
+    return gpd.read_file(path)
 
 
-def _load_local_image(images_dir: Path, building_id: str):
+def _load_local_image(images_dir: Path, building_id: str) -> np.ndarray | None:
     import numpy as np
     from PIL import Image
 
@@ -501,10 +498,11 @@ def _load_local_image(images_dir: Path, building_id: str):
     return None
 
 
-def _load_local_image_and_metadata(images_dir: Path, building_id: str):
+def _load_local_image_and_metadata(
+    images_dir: Path, building_id: str
+) -> tuple[np.ndarray | None, dict[str, Any] | None]:
     import numpy as np
     from PIL import Image
-    import json
 
     image = None
     metadata = None
@@ -521,7 +519,7 @@ def _load_local_image_and_metadata(images_dir: Path, building_id: str):
     return image, metadata
 
 
-def _fetch_street_view_image(polygon, api_key: str):
+def _fetch_street_view_image(polygon: Any, api_key: str) -> np.ndarray | None:
     """Fetch street view image for polygon."""
     from imageable._images.download import download_street_view_image
 
@@ -531,13 +529,13 @@ def _fetch_street_view_image(polygon, api_key: str):
             building_polygon_or_camera=polygon,
             save_path=None,
         )
-        return result.get("image")
+        return result.get("image")  # type: ignore[union-attr]
     except Exception:
         return None
 
 
 
-def _has_valid_imagery(metadata: dict | None) -> bool:
+def _has_valid_imagery(metadata: dict[str, Any] | None) -> bool:
     if metadata is None:
         return False
 
@@ -560,19 +558,19 @@ def _has_valid_imagery(metadata: dict | None) -> bool:
     return True
 
 def _fetch_street_view_image_and_metadata(
-    polygon,
+    polygon: Any,
     api_key: str,
     pictures_directory: str | Path | None = None,
-):
-    from imageable._images.camera.camera_adjustment import CameraParametersRefiner
+) -> tuple[np.ndarray | None, dict[str, Any] | None]:
     from PIL import Image
-    import json
+
+    from imageable._images.camera.camera_adjustment import CameraParametersRefiner
 
     refiner = CameraParametersRefiner(polygon)
 
     camera_params, success, image, last_metadata_dict = refiner.adjust_parameters(
         api_key,
-        pictures_directory=pictures_directory,
+        pictures_directory=pictures_directory,  # type: ignore[arg-type]
         save_reel=False,
         overwrite_images=False if pictures_directory is None else True,
         confidence_detection=0.1,
@@ -588,7 +586,7 @@ def _fetch_street_view_image_and_metadata(
     if camera_params is not None:
         metadata["camera_parameters"] = camera_params.to_dict()
         metadata["adjustment_success"] = success
-        
+
     if pictures_directory is not None:
         pictures_directory = Path(pictures_directory)
         pictures_directory.mkdir(parents=True, exist_ok=True)
@@ -600,11 +598,12 @@ def _fetch_street_view_image_and_metadata(
     return image, metadata
 
 def _estimate_height(
-        polygon,
+        polygon: Any,
         api_key: str,
+        building_id: str,
         verbose: bool = False,
-        all_buildings=None,
-        image = None,
+        all_buildings: Any = None,
+        image: Any = None,
         camera_parameters: dict[str, Any] | None = None,
         height_mode: HeightMode = "svi",
         provider: ProviderType = "google_street_view",
@@ -612,14 +611,14 @@ def _estimate_height(
     from imageable._features.height.building_height import (
         HeightEstimationParameters,
         building_height_from_single_view,
+        corrected_height_from_single_view,
         estimate_height_from_image,
-        corrected_height_from_single_view
     )
     from imageable._images.camera.camera_parameters import CameraParameters as GSVCameraParameters
 
-    if(provider != "google_street_view" and height_mode in ("svi", "cluster_then_predict")):
-        if(verbose):
-            print(f"  Height estimation is currently only supported for Google Street View imagery. Skipping height estimation.")
+    if(provider != "google_street_view" and height_mode in ("svi", "cluster_then_predict")):  # type: ignore[unreachable]
+        if(verbose):  # type: ignore[unreachable]
+            print("  Height estimation is currently only supported for Google Street View imagery. Skipping height estimation.")
         return None
 
     try:
@@ -659,26 +658,30 @@ def _estimate_height(
                     height=h,
                 )
             params.camera_parameters = camera_params
-            raw_height = estimate_height_from_image(
-                image=image,
-                camera_params=camera_params,
-                polygon=polygon,
-                config=params.to_estimation_config(),
-                all_buildings=getattr(params, "all_buildings", None),
-            )
-        else:
-            raw_height = building_height_from_single_view(params)
 
-        if height_mode == "svi":
-            return raw_height
-        elif height_mode == "cluster_then_predict":
+            # Only compute the raw single-view height for modes that consume it
+            # directly. cluster_then_predict recomputes (and corrects) its own raw
+            # height inside corrected_height_from_single_view, so computing it here
+            # would run the full pipeline twice.
+            if height_mode == "svi":
+                return estimate_height_from_image(
+                    image=image,
+                    camera_params=camera_params,
+                    polygon=polygon,
+                    config=params.to_estimation_config(),
+                    all_buildings=getattr(params, "all_buildings", None),
+                )
+        elif height_mode == "svi":
+            return building_height_from_single_view(params)
+
+        if height_mode == "cluster_then_predict":
             return corrected_height_from_single_view(
                 params,
-                params.building_label,
+                building_id,
                 all_buildings=getattr(params, "all_buildings", None) or [],
                 verbose=verbose,
             )
-        elif height_mode == "footprint_based":
+        if height_mode == "footprint_based":
             if verbose:
                 print("Footprint-based ")
             return None
@@ -693,16 +696,15 @@ def _format_output(
     results: list[BuildingProperties],
     original_gdf: gpd.GeoDataFrame,
     output_format: OutputFormat,
-) -> gpd.GeoDataFrame | dict[str, Any] | list[dict]:
+) -> gpd.GeoDataFrame | dict[str, Any] | list[dict[str, Any]]:
     """Convert results to requested output format."""
-    
     # Build records
     records = [props.to_dict() for props in results]
 
     if output_format == "dict":
         return records
 
-    elif output_format == "geojson":
+    if output_format == "geojson":
         features = []
         for i, record in enumerate(records):
             geom = original_gdf.geometry.iloc[i]
@@ -716,10 +718,10 @@ def _format_output(
             "features": features,
         }
 
-    else:  # gdf (default)
-        df = pd.DataFrame(records)
-        return gpd.GeoDataFrame(
-            df,
-            geometry=original_gdf.geometry.values,
-            crs=original_gdf.crs,
-        )
+    # gdf (default)
+    df = pd.DataFrame(records)
+    return gpd.GeoDataFrame(
+        df,
+        geometry=original_gdf.geometry.values,
+        crs=original_gdf.crs,
+    )

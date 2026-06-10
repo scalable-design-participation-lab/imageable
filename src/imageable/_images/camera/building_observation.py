@@ -6,14 +6,14 @@ import numpy as np
 import osmnx as ox
 from shapely.geometry import Polygon
 
+from imageable._extraction.extract import extract_building_properties
+from imageable._models.distance_to_streets_wrapper import DistanceRegressorWrapper
 from imageable._utils.geometry.point_geometry import get_euclidean_distance_meters, get_heading_between_points_euclidean
 from imageable._utils.geometry.polygons import (
     get_polygon_edge_midpoints,
     get_polygon_outward_vectors,
 )
 from imageable._utils.geometry.ray_geometry import get_closest_ray_intersection
-from imageable._models.distance_to_streets_wrapper import DistanceRegressorWrapper
-from imageable._extraction.extract import extract_building_properties
 
 
 class ObservationPointEstimator:
@@ -45,7 +45,7 @@ class ObservationPointEstimator:
 
     def get_observation_point(
         self, buffer_constant: float = 50, true_north: bool = True
-    ) -> tuple[tuple[float, float], tuple[float, float], float, float]:
+    ) -> tuple[tuple[float, float] |None, tuple[float, float]|None, float|None, float]:
         """
         Get the closest point at which a face of the building can be observed
         as orthogonal as possible.
@@ -123,7 +123,7 @@ class ObservationPointEstimator:
             A GeoDataFrame containing the street network within the buffer.
         """
         # We will estimate a buffer using the polygon area
-        building_id = 0
+        building_id = "0"
         properties = extract_building_properties(
             building_id,
             self.polygon
@@ -170,9 +170,7 @@ class ObservationPointEstimator:
         center_point: tuple[float, float],
         dist_meters: float,
     ) -> gpd.GeoDataFrame | None:
-        """
-        Clip a preloaded street network to match OSMnx bbox-from-point behavior.
-        """
+        """Clip a preloaded street network to match OSMnx bbox-from-point behavior."""
         bbox = ox.utils_geo.bbox_from_point(center_point, dist_meters)
         bbox_polygon = ox.utils_geo.bbox_to_poly(bbox)
 

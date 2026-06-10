@@ -9,10 +9,8 @@ Tests cover:
 
 import numpy as np
 import pytest
-from PIL import Image
 
 from imageable._extraction.image import ImageCalculator
-
 
 # =============================================================================
 # Fixtures

@@ -1,6 +1,6 @@
 [project]
 name = "urban-imageable"
-version = "0.1.4"
+version = "0.1.5"
 description = "Computer vision library for extracting 43+ building properties from street view images and footprints"
 readme = "README.md"
 authors = [
@@ -99,6 +99,7 @@ addopts = [
   "--cov-fail-under=35",       # TODO: Increase to 80% before release
   "--strict-markers",
   "--doctest-modules",
+  "--import-mode=importlib",
 ]
 testpaths = ["tests"]
 
@@ -110,6 +111,15 @@ omit = [
   "*/test_*",
   "src/imageable/_models/lcnn/core/*",
   "src/imageable/_models/lcnn/models/*",
+  "src/imageable/_models/materials/backbones/segformer_mit_encoder.py",
+  "src/imageable/_models/materials/decoders/samixer_head.py",
+  "src/imageable/_models/materials/dpt_gate.py",
+  "src/imageable/_models/materials/norms/sync_batchnorm.py",
+  "src/imageable/_models/materials/material_seg_model.py",
+  "src/imageable/_models/materials/rmsnet.py",
+  "src/imageable/_models/materials/postprocess.py",
+  "src/imageable/_models/materials/preprocess.py",
+  "src/imageable/_models/materials/result_types.py",
 ]
 
 [tool.coverage.report]
@@ -212,6 +222,12 @@ ignore = [
   "S101",   # Use of assert detected (allow for tests)
   "COM812", # Trailing comma missing (handled by formatter)
   "ISC001", # Single line implicit string concatenation (handled by formatter)
+  "SIM108", # Allow if-else blocks instead of forcing ternary expressions
+  "RET504", # Allow assigning to a variable before returning it
+  "PLR0913", # Allow many arguments (config classes/functions intentionally take many params)
+  "PLR0912", # Allow many branches
+  "PLR0915", # Allow many statements (large functions)
+  "SLF001",  # Allow private member access across modules
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -221,11 +237,21 @@ ignore = [
   "ANN",     # Don't require annotations in tests
   "PLR2004", # Magic value used in comparison
   "SLF001",  # Allow access to private in tests
+  "INP001",  # tests are namespace packages (importmode=importlib), no __init__.py needed
 ]
 "src/imageable/_models/lcnn/core/**/*.py" = ["ALL"]
 "src/imageable/_models/lcnn/models/**/*.py" = ["ALL"]
 "src/imageable/_models/lcnn/lcnn_wrapper.py" = ["ALL"]
 "tests/models/lcnn/test_lcnn_wrapper.py" = ["ALL"]
+"src/imageable/_models/materials/backbones/segformer_mit_encoder.py" = ["ALL"]  # vendored SegFormer code
+"src/imageable/_models/materials/decoders/samixer_head.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/dpt_gate.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/norms/sync_batchnorm.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/material_seg_model.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/rmsnet.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/postprocess.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/preprocess.py" = ["ALL"]  # vendored
+"src/imageable/_models/materials/result_types.py" = ["ALL"]  # vendored
 
 
 [tool.ruff.lint.pydocstyle]
@@ -233,6 +259,9 @@ convention = "numpy"
 
 [tool.ruff.lint.isort]
 known-first-party = ["imageable"]
+
+[tool.ruff.lint.pep8-naming]
+extend-ignore-names = ["X", "X_*", "Xn", "K", "K_inv", "C", "H", "W", "N", "B", "T", "Ws", "A"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -274,8 +303,46 @@ module = "imageable._models.lcnn.lcnn_wrapper"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
+module = [
+  "imageable._models.materials.backbones.segformer_mit_encoder",
+  "imageable._models.materials.decoders.samixer_head",
+  "imageable._models.materials.dpt_gate",
+  "imageable._models.materials.norms.sync_batchnorm",
+  "imageable._models.materials.material_seg_model",
+  "imageable._models.materials.rmsnet",
+  "imageable._models.materials.postprocess",
+  "imageable._models.materials.preprocess",
+  "imageable._models.materials.result_types",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
 module = "tests.models.lcnn.test_lcnn_wrapper"
 ignore_errors = true
+
+# Third-party libraries without type stubs / py.typed marker
+[[tool.mypy.overrides]]
+module = [
+  "geopandas.*",
+  "joblib.*",
+  "libpysal.*",
+  "sklearn.*",
+  "spopt.*",
+  "shapely.*",
+  "osmnx.*",
+  "ultralytics.*",
+  "cv2.*",
+  "tqdm.*",
+  "pandas.*",
+  "networkx.*",
+  "requests.*",
+  "seaborn.*",
+  "lu_vp_detect.*",
+  "pydeck.*",
+  "contextily.*",
+  "torchvision.*",
+]
+ignore_missing_imports = true
 
 # Bandit security linter configuration
 [tool.bandit]

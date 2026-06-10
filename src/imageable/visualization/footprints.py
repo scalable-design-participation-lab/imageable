@@ -1,16 +1,21 @@
 import json
+from typing import Any, cast
+
 import numpy as np
 import pydeck as pdk
-from typing import List
+from collections.abc import Callable
+from pathlib import Path
 
-def _load_geojson(geojson: str) -> dict:
+
+def _load_geojson(
+        geojson: str|dict[str, Any]) -> dict[Any, Any]:
     if isinstance(geojson, str):
-        with open(geojson, "r") as f:
-            return json.load(f)
+        with open(geojson) as f:
+            return cast(dict[Any, Any], json.load(f))
     return geojson
 
 
-def _compute_view_state(geojson: dict) -> pdk.ViewState:
+def _compute_view_state(geojson: dict[str, Any]) -> pdk.ViewState:
     coords = []
     for feature in geojson.get("features", []):
         geom = feature.get("geometry", {})
@@ -33,14 +38,14 @@ def _compute_view_state(geojson: dict) -> pdk.ViewState:
     )
 
 def visualize_heights(
-    path_geojson: str|dict,
+    path_geojson: str | dict[str, Any],
     height_column: str = "building_heights",
-    cmap=None,
+    cmap: Callable[[float], tuple[float, float, float]] | None = None,
     elevation_scale: float = 1.0,
-    save_html: str = None,
-    map_style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+    save_html: str | None = None,
+    map_style:str ="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
     view_state: pdk.ViewState = None,
-    default_color: List[int] = [200, 200, 200],
+    default_color: list[int] = [200, 200, 200],
 ) -> pdk.Deck:
     data = _load_geojson(path_geojson)
 
@@ -95,8 +100,8 @@ def visualize_heights(
         filled=True,
         extruded=True,
         wireframe=True,
-        get_fill_color='[properties.r*1, properties.g*1, properties.b*1]',
-        get_elevation='properties._elevation*1',
+        get_fill_color="[properties.r*1, properties.g*1, properties.b*1]",
+        get_elevation="properties._elevation*1",
         get_line_color=[0, 0, 0, 80],
     )
 
@@ -120,17 +125,17 @@ def visualize_heights(
 
 
 def visualize_materials(
-    path_geojson: str|dict,
-    cmap = None,
+    path_geojson: str|dict[str, Any],
+    cmap: Callable[[float], tuple[float, float, float]] | None = None,
     material_dict_column: str = "material_percentages",
-    material_column_names: List[str] | None = None,
+    material_column_names: list[str] | None = None,
     elevation_scale: float = 1.0,
     height_column: str = "building_heights",
-    save_html: str = None,
-    map_style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+    save_html: str | None = None,
+    map_style:str="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
     view_state: pdk.ViewState = None,
-    default_color: List[int] = [200, 200, 200], 
-    default_material_names: List[str] = [
+    default_color: list[int] = [200, 200, 200],
+    default_material_names: list[str] = [
         "asphalt",
         "concrete",
         "metal",
@@ -152,7 +157,7 @@ def visualize_materials(
         "human_body",
         "sky",
     ],
-    default_material_colors: List[List[int]] = [
+    default_material_colors: list[list[int]] = [
         [160, 160, 160],        # asphalt
         [220, 220, 220],    # concrete
         [192, 192, 192],    # metal
@@ -174,23 +179,23 @@ def visualize_materials(
         [255, 224, 189],    # human body
         [135, 206, 250]     # sky
     ],
-    paths_building_images:List[str] = None
-) -> pdk.Deck:
+    paths_building_images:list[str] | None = None
+    ) -> pdk.Deck:
     #Open the data
     data = _load_geojson(path_geojson)
     material_order = default_material_names
     if cmap is not None:
         material_colors = []
         n = len(material_order)
-        for i in range(0,n):
+        for i in range(n):
             r_f, g_f, b_f, *_ = cmap(i/max(n-1,1))
             material_colors.append([int(255 * r_f), int(255 * g_f), int(255 * b_f)])
     else:
         material_colors = default_material_colors
-    
+
     material_color_map = {name: color for name, color in zip(material_order, material_colors, strict=False)}
 
-    def _parse_material_dict(value):
+    def _parse_material_dict(value: dict[str, Any] | str | None) -> dict[str, float] | None:
         if isinstance(value, dict):
             return value
         if isinstance(value, str):
@@ -201,7 +206,8 @@ def visualize_materials(
             return parsed if isinstance(parsed, dict) else None
         return None
 
-    def _material_values_from_columns(props):
+    def _material_values_from_columns(
+            props: dict[str, Any])-> dict[str, float] | None:
         if material_column_names is None:
             return None
         values = {}
@@ -219,14 +225,14 @@ def visualize_materials(
         v = feature.get("properties", {}).get(height_column)
         if v is not None:
             heights.append(v)
-    
+
     if heights:
         min_height = float(np.min(heights))
         max_height = float(np.max(heights))
     else:
         min_height = 0.0
         max_height = 1.0
-    
+
     # Assign the values to the features
     for feature in data.get("features", []):
         props = feature.setdefault("properties", {})
@@ -246,14 +252,14 @@ def visualize_materials(
                 r, g, b = default_color
             else:
                 r, g, b = color
-        
+
         height = props.get(height_column)
         if height is None:
             elevation = 0.0
         else:
             height = float(height)
             elevation = height * elevation_scale
-        
+
         if paths_building_images is not None and len(paths_building_images) == len(data.get("features", [])):
             props["image_path"] = _file_to_base64(paths_building_images[data.get("features", []).index(feature)])
         else:
@@ -266,7 +272,7 @@ def visualize_materials(
 
     if view_state is None:
         view_state = _compute_view_state(data)
-    
+
     layer = pdk.Layer(
         "GeoJsonLayer",
         data,
@@ -275,8 +281,8 @@ def visualize_materials(
         filled=True,
         extruded=True,
         wireframe=True,
-        get_fill_color='[properties.r, properties.g, properties.b]',
-        get_elevation='properties._elevation',
+        get_fill_color="[properties.r, properties.g, properties.b]",
+        get_elevation="properties._elevation",
         get_line_color=[0, 0, 0, 80],
     )
 
@@ -306,7 +312,7 @@ def visualize_materials(
     return deck
 
 
-def _file_to_base64(path):
+def _file_to_base64(path:str | Path)-> str:
     import base64
     with open(path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("utf-8")

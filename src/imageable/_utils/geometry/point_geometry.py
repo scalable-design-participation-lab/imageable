@@ -59,5 +59,6 @@ def get_euclidean_distance_meters(point_1: tuple[float, float], point_2: tuple[f
 
     x1, y1 = transformer.transform(point_1[0], point_1[1])
     x2, y2 = transformer.transform(point_2[0], point_2[1])
-
-    return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    distance = float(distance)
+    return distance

@@ -19,7 +19,7 @@ class ImageCalculator:
     and provides methods for extracting various visual features.
     """
 
-    def __init__(self, img: np.ndarray, building_mask: np.ndarray | None = None):
+    def __init__(self, img: np.ndarray, building_mask: np.ndarray | None = None)->None:
         """
         Initialize the calculator with an image and optional building mask.
 
@@ -69,7 +69,8 @@ class ImageCalculator:
 
         Brightness is extracted from the V channel in HSV color space.
 
-        Returns:
+        Returns
+        -------
             Brightness as percentage (0-100)
         """
         masked_values = self.hsv_img[:, :, 2][self.building_mask]
@@ -85,7 +86,8 @@ class ImageCalculator:
 
         Vividness is extracted from the S channel in HSV color space.
 
-        Returns:
+        Returns
+        -------
             Vividness as percentage (0-100)
         """
         masked_values = self.hsv_img[:, :, 1][self.building_mask]
@@ -98,7 +100,7 @@ class ImageCalculator:
     # ========== Shape and Geometry Features ==========
 
     def mask_area(self) -> int:
-        """Number of pixels occupied by building."""
+        """Calculate the number of pixels occupied by building."""
         return int(np.sum(self.building_mask))
 
     def mask_length(self) -> float:
@@ -134,7 +136,7 @@ class ImageCalculator:
 
     def number_of_edges(self) -> int:
         """
-        Number of edges in the polygon that encloses the building mask.
+        Calculate the number of edges in the polygon that encloses the building mask.
 
         Uses polygon approximation to reduce contour to significant edges.
         """
@@ -155,7 +157,7 @@ class ImageCalculator:
 
     def number_of_vertices(self) -> int:
         """
-        Number of vertices in the polygon that encloses the building mask.
+        Calculate the number of vertices in the polygon that encloses the building mask.
 
         This is equivalent to number_of_edges for closed polygons.
         """
@@ -170,7 +172,8 @@ class ImageCalculator:
         Args:
             mask: Binary mask array
 
-        Returns:
+        Returns
+        -------
             (x, y) coordinates of center of mass
         """
         if np.sum(mask) == 0:
@@ -189,7 +192,8 @@ class ImageCalculator:
         Args:
             window_mask: Binary mask of window pixels
 
-        Returns:
+        Returns
+        -------
             Average x coordinate
         """
         x, _ = self._compute_center_of_mass(window_mask)
@@ -202,7 +206,8 @@ class ImageCalculator:
         Args:
             window_mask: Binary mask of window pixels
 
-        Returns:
+        Returns
+        -------
             Average y coordinate
         """
         _, y = self._compute_center_of_mass(window_mask)
@@ -226,7 +231,8 @@ class ImageCalculator:
             mask: Binary mask of features (windows or doors)
             max_k: Maximum number of clusters to try
 
-        Returns:
+        Returns
+        -------
             Optimal number of clusters
         """
         # Get coordinates of mask pixels
@@ -263,7 +269,8 @@ class ImageCalculator:
             window_mask: Binary mask of window pixels
             max_k: Maximum number of windows to search for
 
-        Returns:
+        Returns
+        -------
             Optimal number of window clusters
         """
         return self._optimal_clusters(window_mask, max_k)
@@ -276,7 +283,8 @@ class ImageCalculator:
             door_mask: Binary mask of door pixels
             max_k: Maximum number of doors to search for
 
-        Returns:
+        Returns
+        -------
             Optimal number of door clusters
         """
         return self._optimal_clusters(door_mask, max_k)
@@ -293,7 +301,8 @@ class ImageCalculator:
             window_mask: Optional binary mask of windows for façade features
             door_mask: Optional binary mask of doors for façade features
 
-        Returns:
+        Returns
+        -------
             Dictionary of feature names and values
         """
         features = {

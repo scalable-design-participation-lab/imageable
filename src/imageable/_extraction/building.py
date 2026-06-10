@@ -6,6 +6,7 @@ This module integrates all building features: footprint, height, materials, and 
 
 import json
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -56,7 +57,7 @@ class BuildingProperties:
     # ========== Material Percentages ==========
     material_percentages: dict[str, float] = field(default_factory=dict)
     material_areas: dict[str, float] = field(default_factory=dict)
-    material_areas_units: str = None
+    material_areas_units: str | None = None
 
     # ========== Image: Color Features ==========
     average_red_channel_value: float = 0.0
@@ -211,7 +212,7 @@ class BuildingProperties:
         """
         return asdict(self)
 
-    def to_json(self, filepath: str | None = None) -> str:
+    def to_json(self, filepath: str | None | Path = None) -> str:
         """
         Convert features to JSON.
 

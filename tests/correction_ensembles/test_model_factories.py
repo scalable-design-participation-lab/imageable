@@ -1,6 +1,11 @@
-from imageable._correction_ensembles.model_factories import choose_model_for_cluster, choose_model_for_cluster_gb, choose_model_for_cluster_xgb
-from xgboost import XGBRegressor
 from sklearn.ensemble import GradientBoostingRegressor
+from xgboost import XGBRegressor
+
+from imageable._correction_ensembles.model_factories import (
+    choose_model_for_cluster,
+    choose_model_for_cluster_gb,
+    choose_model_for_cluster_xgb,
+)
 
 
 def test_choose_model_for_cluster():

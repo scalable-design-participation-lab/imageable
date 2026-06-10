@@ -1,5 +1,6 @@
 import itertools
 import math
+from collections.abc import Iterator
 
 import geopandas as gpd
 import numpy as np
@@ -8,7 +9,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import nearest_points
 
 
-def _iter_lines(geom: BaseGeometry):
+def _iter_lines(geom: BaseGeometry)->Iterator[LineString]:
     gt = geom.geom_type
     if gt == "LineString":
         yield geom
@@ -123,7 +124,10 @@ def get_closest_intersected_line(
 
 
 def get_closest_ray_intersection(
-    start_point: tuple[float], ray_direction: tuple[float], boundaries: gpd.GeoDataFrame, max_ray_length: float = 500
+    start_point: tuple[float, float],
+    ray_direction: tuple[float, float],
+    boundaries: gpd.GeoDataFrame,
+    max_ray_length: float = 500,
 ) -> tuple[tuple[float, float] | None, float]:
     """
     Obtain the closest intersection of a ray with boundaries defined by a GeoDataFrame.

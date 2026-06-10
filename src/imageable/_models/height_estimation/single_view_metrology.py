@@ -40,10 +40,12 @@ class SingleViewMetrology:
         p3 = alpha * v3
 
         zx = -np.linalg.norm(np.cross(x1, x2)) / (np.dot(p4, x1) * np.linalg.norm(np.cross(p3, x2)))
-        return abs(zx)
+        return float(abs(zx))
 
     @staticmethod
-    def sv_measurement1(v, vline, x1, x2, zc=2.5):
+    def sv_measurement1(
+        v: np.ndarray, vline: np.ndarray, x1: np.ndarray, x2: np.ndarray, zc: float = 2.5
+    ) -> float:
         p4 = vline / np.linalg.norm(vline)
         alpha = -1 / (np.dot(p4, v) * zc)
         p3 = alpha * v
@@ -51,10 +53,17 @@ class SingleViewMetrology:
         zx = -np.linalg.norm(np.cross(x1, x2)) / (np.dot(p4, x1) * np.linalg.norm(np.cross(p3, x2)))
         zx = abs(zx)
 
-        return zx
+        return float(zx)
 
     @staticmethod
-    def calculate_with_cross_ratio(hori_v1, hori_v2, vert_v1, pt_top, pt_bottom, zc=2.5):
+    def calculate_with_cross_ratio(
+        hori_v1: np.ndarray,
+        hori_v2: np.ndarray,
+        vert_v1: np.ndarray,
+        pt_top: np.ndarray,
+        pt_bottom: np.ndarray,
+        zc: float = 2.5,
+    ) -> float:
         """
         Cross-ratio based height calculation from heightMeasurement.py lines 144-166
         """
@@ -70,10 +79,13 @@ class SingleViewMetrology:
         dist_CD = np.linalg.norm(np.asarray([C - pt_bottom]))
 
         height = dist_BD * dist_AC / (dist_CD * dist_AB) * zc
-        return height
+        return float(height)
 
     @staticmethod
-    def calculate_with_cross_ratio_vl(hori_vline, vert_v1, pt_top, pt_bottom, zc=2.5):
+    def calculate_with_cross_ratio_vl(
+        hori_vline:np.ndarray, 
+        vert_v1: np.ndarray, pt_top: np.ndarray, pt_bottom: np.ndarray, zc: float = 2.5
+    )-> float:
         """
         Cross-ratio with vanishing line from heightMeasurement.py lines 169-192
         """
@@ -89,4 +101,4 @@ class SingleViewMetrology:
         dist_CD = np.linalg.norm(np.asarray([C - pt_bottom]))
 
         height = dist_BD * dist_AC / (dist_CD * dist_AB) * zc
-        return height
+        return float(height)

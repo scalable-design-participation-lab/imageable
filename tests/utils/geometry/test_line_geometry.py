@@ -59,6 +59,7 @@ def test_intersection():
     # x + y = 1  and  x = y  ->  (1/2, 1/2)
     point = intersection((-1, -1, 1), (1, -1, 0))
 
+    assert point is not None
     np.testing.assert_allclose(point, [0.5, 0.5])
 
 

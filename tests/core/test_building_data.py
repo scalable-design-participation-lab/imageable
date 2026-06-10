@@ -1,17 +1,14 @@
 """Tests for core.building_data module - public API for building data extraction."""
 
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import geopandas as gpd
 import numpy as np
 import pytest
 from shapely.geometry import Polygon
 
+from imageable._extraction.building import BuildingProperties
 from imageable.core.building_data import (
-    _extract_building_data_core,
     _format_output,
     _load_geojson_to_gdf,
     _load_local_image,
@@ -19,8 +16,6 @@ from imageable.core.building_data import (
     get_building_data_from_gdf,
     get_building_data_from_geojson,
 )
-from imageable._extraction.building import BuildingProperties
-
 
 # =============================================================================
 # Fixtures

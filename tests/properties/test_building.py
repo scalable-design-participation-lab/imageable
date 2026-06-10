@@ -2,12 +2,12 @@
 Tests for BuildingProperties dataclass.
 """
 
-import pytest
-import numpy as np
 import json
-import tempfile
 import os
-from pathlib import Path
+import tempfile
+
+import numpy as np
+import pytest
 
 from imageable._extraction.building import BuildingProperties
 
@@ -373,7 +373,7 @@ class TestSerialization:
             assert os.path.exists(filepath)
 
             # Verify content
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 content = json.load(f)
 
             assert content["unprojected_area"] == 150.0

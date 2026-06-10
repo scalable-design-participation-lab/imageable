@@ -72,7 +72,7 @@ def dataset_from_gdf(
         footprint = footprints[i]
         footprint_index = footprint_indices[i]
 
-        height = dataset_params.none_value
+        height:float | None = dataset_params.none_value
         height_params = dataset_params.height_estimation_parameters
         if height_params is not None:
             height_params = HeightEstimationParameters(**vars(height_params))

@@ -46,12 +46,12 @@ class FootprintCalculator:
             The unprojected area of the footprint.
         """
         if original_crs == FootprintCalculator.UNPROJECTED_CRS:
-            return footprint.area
+            return float(footprint.area)
         start_crs = pyproj.CRS(original_crs)
         end_crs = pyproj.CRS(FootprintCalculator.UNPROJECTED_CRS)
         project = pyproj.Transformer.from_crs(start_crs, end_crs, always_xy=True).transform
         reprojected_footprint = transform(project, footprint)
-        return reprojected_footprint.area
+        return float(reprojected_footprint.area)
 
     @staticmethod
     def calculate_projected_area(footprint: Polygon, original_crs: int = 4326) -> float:
@@ -71,12 +71,12 @@ class FootprintCalculator:
             The projected area in square meters.
         """
         if original_crs == FootprintCalculator.PROJECTED_CRS:
-            return footprint.area
+            return float(footprint.area)
         start_crs = pyproj.CRS(original_crs)
         end_crs = pyproj.CRS(FootprintCalculator.PROJECTED_CRS)
         project = pyproj.Transformer.from_crs(start_crs, end_crs, always_xy=True).transform
         reprojected_footprint = transform(project, footprint)
-        return reprojected_footprint.area
+        return float(reprojected_footprint.area)
 
     @staticmethod
     def longitude_difference(footprint: Polygon) -> float:
@@ -98,7 +98,7 @@ class FootprintCalculator:
         longitude_values = [x[0] for x in poly_coords]
         max_longitude = max(longitude_values)
         min_longitude = min(longitude_values)
-        return max_longitude - min_longitude
+        return float(max_longitude - min_longitude)
 
     @staticmethod
     def latitude_difference(footprint: Polygon) -> float:
@@ -120,7 +120,7 @@ class FootprintCalculator:
         latitude_values = [x[1] for x in poly_coords]
         max_lat = max(latitude_values)
         min_lat = min(latitude_values)
-        return max_lat - min_lat
+        return float(max_lat - min_lat)
 
     @staticmethod
     def n_vertices(footprint: Polygon) -> int:
@@ -260,7 +260,7 @@ class FootprintCalculator:
         if area == 0 or n_segments == 0:
             return 0.0
 
-        return sum(segment_lengths) / (area * n_segments)
+        return float(sum(segment_lengths) / (area * n_segments))
 
     @staticmethod
     def isoperimetric_quotient(footprint: Polygon, crs: int = 4326) -> float:
@@ -451,7 +451,7 @@ class FootprintCalculator:
             np.sqrt((nc.x - centroid_center.x) ** 2 + (nc.y - centroid_center.y) ** 2) for nc in neighbor_centroids
         ]
 
-        return np.mean(distances)
+        return float(np.mean(distances))
 
     @staticmethod
     def expected_nearest_neighbor_distance(
@@ -479,7 +479,7 @@ class FootprintCalculator:
         density = n / area
 
         if density > 0:
-            return 1 / (2 * np.sqrt(density))
+            return float(1 / (2 * np.sqrt(density)))
         return float("inf")
 
     @staticmethod
@@ -543,9 +543,9 @@ class FootprintCalculator:
         )
 
         # Include the center footprint itself
-        all_footprints = neighbors + [projected_footprint]
+        all_footprints = [*neighbors, projected_footprint]
         areas = [fp.area for fp in all_footprints]
-        return np.mean(areas)
+        return float(np.mean(areas))
 
     @staticmethod
     def n_size_std(footprints: list[Polygon], central_footprint: Polygon, radius: float = 600) -> float:
@@ -570,9 +570,9 @@ class FootprintCalculator:
             footprints, central_footprint, radius
         )
 
-        all_footprints = neighbors + [projected_footprint]
+        all_footprints = [*neighbors, projected_footprint]
         areas = [fp.area for fp in all_footprints]
-        return np.std(areas)
+        return float(np.std(areas))
 
     @staticmethod
     def n_size_min(footprints: list[Polygon], central_footprint: Polygon, radius: float = 600) -> float:
@@ -597,9 +597,9 @@ class FootprintCalculator:
             footprints, central_footprint, radius
         )
 
-        all_footprints = neighbors + [projected_footprint]
+        all_footprints = [*neighbors, projected_footprint]
         areas = [fp.area for fp in all_footprints]
-        return np.min(areas)
+        return float(np.min(areas))
 
     @staticmethod
     def n_size_max(footprints: list[Polygon], central_footprint: Polygon, radius: float = 600) -> float:
@@ -624,9 +624,9 @@ class FootprintCalculator:
             footprints, central_footprint, radius
         )
 
-        all_footprints = neighbors + [projected_footprint]
+        all_footprints = [*neighbors, projected_footprint]
         areas = [fp.area for fp in all_footprints]
-        return np.max(areas)
+        return float(np.max(areas))
 
     @staticmethod
     def n_size_cv(footprints: list[Polygon], central_footprint: Polygon, radius: float = 600) -> float:
@@ -651,14 +651,14 @@ class FootprintCalculator:
             footprints, central_footprint, radius
         )
 
-        all_footprints = neighbors + [projected_footprint]
+        all_footprints = [*neighbors, projected_footprint]
         areas = [fp.area for fp in all_footprints]
         mean_area = np.mean(areas)
 
         if mean_area == 0:
             return 0.0
 
-        return np.std(areas) / mean_area
+        return float(np.std(areas) / mean_area)
 
     @staticmethod
     def nni(footprints: list[Polygon], center_building: Polygon, radius: float = 600) -> float:
@@ -779,10 +779,10 @@ def extract_footprint_properties(
                     "neighbor_count": n_count,
                     "mean_distance_to_neighbors": float(np.mean(distances)),
                     "nearest_neighbor_distance": float(np.min(distances)),
-                    "n_size_mean": float(np.mean(neighbor_areas + [projected_center.area])),
-                    "n_size_std": float(np.std(neighbor_areas + [projected_center.area])),
-                    "n_size_min": float(np.min(neighbor_areas + [projected_center.area])),
-                    "n_size_max": float(np.max(neighbor_areas + [projected_center.area])),
+                    "n_size_mean": float(np.mean([*neighbor_areas, projected_center.area])),
+                    "n_size_std": float(np.std([*neighbor_areas, projected_center.area])),
+                    "n_size_min": float(np.min([*neighbor_areas, projected_center.area])),
+                    "n_size_max": float(np.max([*neighbor_areas, projected_center.area])),
                 }
             )
 

@@ -1,13 +1,13 @@
 """Tests for core.image module - high-level image acquisition API."""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from shapely.geometry import Polygon
 
-from imageable.core.image import get_image, load_image
 from imageable._images.camera.camera_parameters import CameraParameters
+from imageable.core.image import get_image, load_image
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ class TestGetImage:
     ):
         """Test that get_image returns image, camera_params and metadata tuple."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera_params,
@@ -53,7 +53,7 @@ class TestGetImage:
             success=True,
         )
 
-        image, camera_params, metadata = get_image("api_key", simple_polygon)
+        image, camera_params, metadata = get_image("api_key", simple_polygon)  # type: ignore[misc]
 
         assert isinstance(image, np.ndarray)
         assert image.shape == (512, 512, 3)
@@ -66,7 +66,7 @@ class TestGetImage:
     ):
         """Test that only image is returned when return_metadata=False."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera_params,
@@ -83,7 +83,7 @@ class TestGetImage:
     def test_passes_save_path(self, mock_acquire, simple_polygon, mock_image, mock_camera_params, tmp_path):
         """Test that save_path is passed to acquisition config."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera_params,
@@ -106,7 +106,7 @@ class TestGetImage:
     ):
         """Test that API key and polygon are passed correctly."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera_params,
@@ -130,7 +130,7 @@ class TestGetImage:
     ):
         """Test that refinement can be disabled."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera_params,
@@ -171,7 +171,7 @@ class TestGetImage:
     ):
         """Test that RuntimeError is raised when acquisition fails."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=None,
             camera_params=CameraParameters(longitude=0, latitude=0),
@@ -189,20 +189,21 @@ class TestLoadImage:
     def test_load_existing_image(self, tmp_path, mock_image):
         """Test loading an existing image."""
         import json
+
         from PIL import Image
-        
+
         # Create test image
         image_path = tmp_path / "image.jpg"
         Image.fromarray(mock_image).save(image_path)
-        
+
         # Create metadata
         metadata_path = tmp_path / "metadata.json"
         metadata = {"camera_parameters": {"fov": 90, "longitude": -71.0, "latitude": 42.0}}
         with open(metadata_path, "w") as f:
             json.dump(metadata, f)
-        
+
         image, camera_params, meta = load_image(image_path)
-        
+        assert image is not None
         assert image.shape == (512, 512, 3)
         assert camera_params.fov == 90
 

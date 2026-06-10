@@ -12,7 +12,6 @@ from imageable._images.camera.camera_parameters import CameraParameters
 from imageable._images.download import fetch_image
 from imageable._images.image import ImageMetadata
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -51,14 +50,14 @@ def mock_image_response():
     """Create a mock successful image response."""
     mock = Mock()
     mock.status_code = HTTPStatus.OK
-    
+
     # Create a fake image
     fake_image = np.zeros((10, 10, 3), dtype=np.uint8)
     image_bytes = io.BytesIO()
     Image.fromarray(fake_image).save(image_bytes, format="JPEG")
     image_bytes.seek(0)
     mock.content = image_bytes.read()
-    
+
     return mock
 
 
@@ -98,6 +97,7 @@ class TestFetchImage:
         image, metadata = fetch_image("FAKE_KEY", mock_camera_params, save_path=None)
 
         assert image is None
+        assert metadata is not None
         assert metadata.status is False
 
     @patch("imageable._images.download.requests.get")
@@ -113,6 +113,7 @@ class TestFetchImage:
         image, metadata = fetch_image("FAKE_KEY", mock_camera_params, save_path=None)
 
         assert image is None
+        assert metadata is not None
         assert metadata.status is False
 
 
@@ -168,7 +169,7 @@ class TestCameraParametersValidation:
             fov=90.0,
         )
         d = params.to_dict()
-        
+
         assert isinstance(d, dict)
         assert d["latitude"] == 40.7128
         assert d["longitude"] == -74.0060

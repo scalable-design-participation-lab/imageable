@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from huggingface_hub import hf_hub_download, try_to_load_from_cache
 from PIL import Image
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore[attr-defined]
 from ultralytics.engine.results import Results
 
 from imageable._models.huggingface.base import HuggingFaceModelWrapper
@@ -22,7 +22,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
         self.model_repo = model_repo
         self.filename = filename
         self.device = device or self._resolve_device()
-        self.model = None
+        self.model: YOLO | None = None
 
     def load_model(
             self,
@@ -32,8 +32,9 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
             model_path = try_to_load_from_cache(repo_id=self.model_repo, filename=self.filename)
             if(model_path):
                 self.model = YOLO(model_path)
+                assert self.model is not None, "Model loading failed from cache."
                 self.model.to(self.device)
-            
+
             model_path = hf_hub_download(repo_id = self.model_repo, filename = self.filename)
             self.model = YOLO(model_path)
             self.model.to(self.device)
@@ -53,7 +54,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
 
     def postprocess(
         self, outputs: Results, sky_label: str = "sky", floor_label: str = "sidewalk", building_label: str = "facade"
-    ) -> dict:
+    ) -> dict[str, float | np.ndarray | None]:
         """
         Compute sky/floor pixel ratios and return their binary masks. In the case that
         a building facade is detected near the center of the image, the ratios will focus
@@ -89,9 +90,9 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
                 "floor_mask": None,
             }
 
-        class_ids = outputs.boxes.cls.int().tolist()
+        class_ids = outputs.boxes.cls.int().tolist()  # type: ignore[union-attr]
         class_names = [names[cid] for cid in class_ids]
-        mask_array = masks.data.cpu().numpy()
+        mask_array = masks.data.cpu().numpy()  # type: ignore[union-attr]
 
         height, width = masks.data.shape[1], masks.data.shape[2]
         sky_mask = np.zeros((height, width), dtype=bool)
@@ -133,6 +134,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
 
         # Get limits of the facade
         facade_bounds = get_mask_limits(closest_facade)
+        assert facade_bounds is not None, "Facade bounds could not be determined."
         x_min = facade_bounds[0]
         x_max = facade_bounds[2]
 
@@ -157,7 +159,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
             "facade_mask": closest_facade,
         }
 
-    def predict(self, image: Image.Image | np.ndarray, conf: float = 0.5) -> dict:
+    def predict(self, image: Image.Image | np.ndarray, conf: float = 0.5) -> dict[str, float | np.ndarray | None]:
         """
         Predict the sky and floor ratios for a given image.
 
@@ -178,6 +180,7 @@ class FloorSkyRatioCalculator(HuggingFaceModelWrapper):
         if not self.is_loaded():
             self.load_model()
         input_tensor = self.preprocess(image)
+        assert self.model is not None, "Model is not loaded."
         results = self.model.predict(input_tensor, conf=conf, verbose=False)
         return self.postprocess(results[0])
 

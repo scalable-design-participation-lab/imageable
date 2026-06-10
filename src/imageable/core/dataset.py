@@ -1,6 +1,7 @@
 """High-level dataset extraction API."""
 
 from typing import Any
+
 from shapely.geometry import Polygon
 
 from imageable._extraction.building import BuildingProperties

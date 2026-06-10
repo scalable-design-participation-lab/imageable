@@ -1,12 +1,16 @@
-from typing import List
-import numpy as np
-from shapely import Polygon
+
+from typing import Any
+
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
-from matplotlib.patches import Arc
-from matplotlib.patches import Wedge
-import matplotlib.patheffects as pe
+from matplotlib.patches import Wedge, Circle
+from shapely import Polygon
+from matplotlib.colors import Colormap
+
 
 
 class WheelElement:
@@ -39,12 +43,12 @@ class WheelElement:
         self.size = size
 
     def draw(self,
-             ax: plt.Axes,
+             ax: Axes,
              total_radius: float,
              delta_angle: float,
              delta_r: float,
              color: str = "#000000",
-             label: str = None,
+             label: str | None = None,
              gamma: float = 0.8,
              image_scale: float = 0.33) -> None:
         # numeric -> circular segment (thick arc)
@@ -90,10 +94,10 @@ class WheelElement:
             size = self.size * image_scale
             img_artist = ax.imshow(
                 np.asarray(self.data),
-                extent=[
+                extent=(
                     self.x - size, self.x + size,
                     self.y - size, self.y + size
-                ],
+                ),
                 aspect="equal",
                 interpolation="lanczos",
                 resample=True,
@@ -139,14 +143,14 @@ class WheelElement:
             xs, ys = self.data.exterior.xy
             centroid_x = 0
             centroid_y = 0
-            for x, y in zip(xs, ys):
+            for x, y in zip(xs, ys, strict=False):
                 centroid_x += x / len(xs)
                 centroid_y += y / len(ys)
 
             # vectors from each point to centroid, scaled to fit
             scaled_xs = [x - centroid_x for x in xs]
             scaled_ys = [y - centroid_y for y in ys]
-            norms = [np.sqrt(sx ** 2 + sy ** 2) for sx, sy in zip(scaled_xs, scaled_ys)]
+            norms = [np.sqrt(sx ** 2 + sy ** 2) for sx, sy in zip(scaled_xs, scaled_ys, strict=False)]
             max_norm = np.max(norms)
             scaled_xs = [sx / max_norm * self.size / 2 for sx in scaled_xs]
             scaled_ys = [sy / max_norm * self.size / 2 for sy in scaled_ys]
@@ -158,7 +162,7 @@ class WheelElement:
 
 class WheelVisualization:
     def __init__(self,
-                 elements: List[WheelElement],
+                 elements: list[WheelElement],
                  radius_size: float = 10.0,
                  reduction_factor: float = 0.8,
                  image_scale: float = 0.33,
@@ -168,7 +172,7 @@ class WheelVisualization:
         self.elements = elements
 
         # groups correspond to angular divisions, features to radial divisions
-        def unique_preserve_order(seq):
+        def unique_preserve_order(seq:list[Any])->list[Any]:
             seen = set()
             result = []
             for x in seq:
@@ -233,7 +237,7 @@ class WheelVisualization:
         return self.image_scale * (1.0 + self.image_outer_boost * layer_fraction)
 
     def draw_wheel(self,
-                   cmap: plt.Colormap = plt.cm.viridis,
+                   cmap: Colormap = plt.get_cmap("viridis"),
                    contour_color: str | list[str] = "red",
                    figure_width: float = 8.0,
                    figure_height: float = 8.0,
@@ -258,8 +262,8 @@ class WheelVisualization:
         else:
             circle_colors = [contour_color] * len(radius_list)
 
-        for r, c in zip(radius_list, circle_colors):
-            circle = plt.Circle(
+        for r, c in zip(radius_list, circle_colors, strict=False):
+            circle = Circle(
                 center, r,
                 color=scaffold_color,
                 fill=False,
@@ -390,7 +394,7 @@ class WheelVisualization:
             t.set_path_effects([pe.withStroke(linewidth=2.5, foreground="white", alpha=0.9)])
 
         ax.set_axis_off()
-        ax.set_aspect('equal')
+        ax.set_aspect("equal")
         ax.set_xlim(-self.radius_size - radius_delta, self.radius_size + radius_delta)
         ax.set_ylim(-self.radius_size - radius_delta, self.radius_size + radius_delta)
 
@@ -427,7 +431,7 @@ class WheelVisualization:
                     x = left + col * (cb_width + h_gap)
                     y = bottom_pad + (n_rows - 1 - row) * row_block
 
-                    cax = fig.add_axes([x, y, cb_width, cb_height])
+                    cax = fig.add_axes((x, y, cb_width, cb_height))
                     if np.isclose(vmin, vmax):
                         vmax = vmin + 1e-9
                     norm = Normalize(vmin=vmin, vmax=vmax)
@@ -440,8 +444,8 @@ class WheelVisualization:
                     if len(tick_labels) >= 2:
                         tick_labels[0].set_horizontalalignment("left")
                         tick_labels[-1].set_horizontalalignment("right")
-                    cb.outline.set_linewidth(0.4)
+                    cb.outline.set_linewidth(0.4) # type: ignore[operator]
                     cb.ax.set_title(fname, fontsize=8, pad=1)
-        
+
         if save_path is not None:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")

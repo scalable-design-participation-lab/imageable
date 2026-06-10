@@ -1,8 +1,14 @@
 import numpy as np
-from imageable._utils.masks.mask_operations import get_mask_area, get_mask_centroid, get_mask_limits, segment_horizontally_based_on_pixel_density
+
+from imageable._utils.masks.mask_operations import (
+    get_mask_area,
+    get_mask_centroid,
+    get_mask_limits,
+    segment_horizontally_based_on_pixel_density,
+)
 
 
-def _get_mock_mask():
+def _get_mock_mask()-> tuple[int, int, np.ndarray]:
     mask = np.zeros((640,640), dtype = np.uint8)
 
     x_lim_1 = 200
@@ -12,7 +18,7 @@ def _get_mock_mask():
 
     return x_lim_1, x_lim_2,mask
 
-def _get_mock_mask_with_density():
+def _get_mock_mask_with_density()-> np.ndarray:
     mask = np.zeros((640,640), dtype = np.uint8)
 
     # Left segment: High density
@@ -31,7 +37,7 @@ def _get_mock_mask_with_density():
     return mask
 
 
-def test_mask_operations(): 
+def test_mask_operations():
     x_lim_1, x_lim_2, mask = _get_mock_mask()
 
     area = get_mask_area(mask)
@@ -40,7 +46,9 @@ def test_mask_operations():
 
     centroid = get_mask_centroid(mask)
 
-    x_min, y_min, x_max,y_max = get_mask_limits(mask)
+    result = get_mask_limits(mask)
+    assert result is not None
+    x_min, y_min, x_max, y_max = result
 
     assert area == area_expected
     assert centroid[0]+0.5 == (x_lim_1 + x_lim_2) / 2

@@ -1,31 +1,34 @@
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-import numpy as np
-from typing import Tuple, Dict, Callable, List, Optional, Any
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.metrics import pairwise_distances
-from imageable._models.base import BaseModelWrapper
-from libpysal.weights import Queen  # or Rook
-from spopt.region import Skater
-import joblib
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+import geopandas as gpd
+import joblib
+import numpy as np
+from libpysal.weights import Queen
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances, silhouette_score
+from sklearn.preprocessing import StandardScaler
+from spopt.region import Skater
+
+from imageable._models.base import BaseModelWrapper
+
 
 def get_best_k_silhouette(
     data: np.ndarray,
-    k_range: Tuple[int, int] = (2, 10),
-) -> Tuple[int, Dict[int, float]]:
+    k_range: tuple[int, int] = (2, 10),
+) -> tuple[int, dict[int, float]]:
     best_k = None
     best_score = -np.inf
     k_min = int(k_range[0])
     k_max = int(k_range[1])
-    scores: Dict[int, float] = {}
+    scores: dict[int, float] = {}
     data = np.asarray(data, dtype=np.float64)
 
 
     if np.isnan(data).any() or np.isinf(data).any():
-        raise ValueError("Input data contains NaN or inf.")
+        msg = "Input data contains NaN or inf."
+        raise ValueError(msg)
 
     for k in range(k_min, k_max + 1):
         kmeans = KMeans(n_clusters=k, n_init=1).fit(data)
@@ -42,6 +45,13 @@ def get_best_k_silhouette(
         if s > best_score:
             best_score = s
             best_k = k
+
+    if best_k is None:
+        msg = f"No valid k found in range {k_range} (all had empty clusters)."
+        raise ValueError(msg)
+
+    assert isinstance(best_k, int)
+
 
     return best_k, scores
 
@@ -60,11 +70,11 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self,
         n_clusters: int,
         model_factory: Callable[[int], Any],
-        kmeans_kwargs: Optional[Dict[str, Any]] = None,
+        kmeans_kwargs: dict[str, Any] | None = None,
         distance_eps: float = 1e-12,
-        feature_indices_used_for_clustering: Optional[List[int]] = None,
-        scale: bool = False,      
-        decay_constant: float = 3.0,      
+        feature_indices_used_for_clustering: list[int] | None = None,
+        scale: bool = False,
+        decay_constant: float = 3.0,
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
@@ -76,11 +86,11 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self.scaler = StandardScaler() if scale else None
 
         self._kmeans = None
-        self._cluster_centers = None
-        self._cluster_models = []
+        self._cluster_centers: np.ndarray | None = None
+        self._cluster_models: list[Any] = []
         self._is_loaded = False
 
-    def load_model(self, X: np.ndarray, y: np.ndarray) -> None:
+    def load_model(self, X: np.ndarray|None = None, y: np.ndarray|None = None) -> None:
         """
         Fit KMeans + per-cluster regressors.
 
@@ -89,6 +99,9 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         X : (n_samples, n_features)
         y : (n_samples,)
         """
+        if(X is None or y is None):
+            msg = "X and y must be provided to load_model."
+            raise ValueError(msg)
         X = np.asarray(X)
         y = np.asarray(y)
 
@@ -105,13 +118,20 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
             X_cluster = X
 
         # KMeans on cluster features
-        self._kmeans = KMeans(
+        kmeans = KMeans(
             n_clusters=self.n_clusters,
             **self.kmeans_kwargs,
-        ).fit(X_cluster)
+        )
+        kmeans.fit(X_cluster)
 
-        labels = self._kmeans.labels_
-        self._cluster_centers = self._kmeans.cluster_centers_
+        # ensure fitting succeeded and assign to self._kmeans
+        if not hasattr(kmeans, "labels_"):
+            msg = "KMeans fit did not produce labels_."
+            raise RuntimeError(msg)
+        self._kmeans = kmeans
+
+        labels = kmeans.labels_
+        self._cluster_centers = kmeans.cluster_centers_
 
         # one expert per cluster, trained on full X
         self._cluster_models = []
@@ -131,8 +151,8 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         return self._is_loaded
 
     def _compute_weights(
-            self, 
-            X: np.ndarray,) -> np.ndarray:
+            self,
+            X: np.ndarray) -> np.ndarray:
         """
         Compute soft assignment weights for each sample to each cluster,
         based on distance to cluster centers.
@@ -140,9 +160,11 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         X is assumed to be in the same feature space as training X
         (i.e., already scaled if self.scaler is not None).
         """
+        # _cluster_centers is declared in __init__; just check for None
         if self._cluster_centers is None:
-            raise RuntimeError("Model not loaded: no cluster centers.")
-        
+            msg = "Model not loaded: no cluster centers."
+            raise RuntimeError(msg)
+
         X = np.asarray(X)
 
         if self.feature_indices_used_for_clustering is not None:
@@ -155,20 +177,19 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         min_dists = np.min(dists, axis=1, keepdims=True)
         w = np.exp(-self.decay_constant * (dists - min_dists))
         w = w / np.sum(w, axis=1, keepdims=True)
+        w = np.asarray(w, dtype = np.float64)
         return w
 
     def predict(self, inputs: Any) -> np.ndarray:
         if not self.is_loaded():
-            raise RuntimeError("Model not loaded. Call load_model(X, y) first.")
+            msg = "Model not loaded. Call load_model(X, y) first."
+            raise RuntimeError(msg)
 
         X = self.preprocess(inputs)
         X = np.asarray(X)
 
         # 🔹 Single place where scaling happens at inference
-        if self.scaler is not None:
-            X_scaled = self.scaler.transform(X)
-        else:
-            X_scaled = X
+        X_scaled = self.scaler.transform(X) if self.scaler is not None else X
 
         weights = self._compute_weights(X_scaled)
 
@@ -176,18 +197,21 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)
-        return self.postprocess(blended)
+        blended = np.asarray(self.postprocess(blended), dtype=np.float64)
+        return blended
 
     @property
     def cluster_centers_(self) -> np.ndarray:
         if self._cluster_centers is None:
-            raise RuntimeError("Model not loaded.")
+            msg = "Model not loaded."
+            raise RuntimeError(msg)
         return self._cluster_centers
 
     @property
-    def experts_(self) -> List[Any]:
+    def experts_(self) -> list[Any]:
         if not self.is_loaded():
-            raise RuntimeError("Model not loaded.")
+            msg = "Model not loaded."
+            raise RuntimeError(msg)
         return self._cluster_models
 
     def export_model(
@@ -206,34 +230,13 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
             Name of the file to save the model as.
         """
         if not self.is_loaded():
-            raise RuntimeError("Cannot export an unloaded model.")
+            msg = "Cannot export an unloaded model."
+            raise RuntimeError(msg)
 
-        else:
-            save_path = Path(save_dir) / f"{filename}.pkl"
-            if(not Path(save_dir).exists()):
-                Path(save_dir).mkdir(parents=True, exist_ok=True)
-            joblib.dump(self, save_path)
-
-
-
-
-import numpy as np
-from typing import Any, Callable, Dict, List, Optional
-
-from sklearn.base import BaseEstimator
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import pairwise_distances
-
-from libpysal.weights import Queen  # or Rook
-from spopt.region import Skater
-
-# assuming you already have this in your codebase
-class BaseModelWrapper(BaseEstimator):
-    def preprocess(self, X: Any) -> np.ndarray:
-        return np.asarray(X)
-
-    def postprocess(self, y_pred: np.ndarray) -> np.ndarray:
-        return y_pred
+        save_path = Path(save_dir) / f"{filename}.pkl"
+        if(not Path(save_dir).exists()):
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+        joblib.dump(self, save_path)
 
 class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
     """
@@ -249,10 +252,10 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         self,
         n_clusters: int,
         model_factory: Callable[[int], Any],
-        attrs_name: List[str],
-        scaler: Optional[StandardScaler] = None,
+        attrs_name: list[str],
+        scaler: StandardScaler | None = None,
         distance_eps: float = 1e-12,
-        feature_indices_used_for_clustering: Optional[List[int]] = None,
+        feature_indices_used_for_clustering: list[int] | None = None,
         decay_constant:float = 2.0
     ) -> None:
 
@@ -262,9 +265,9 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         self.scaler = scaler              # if None → no scaling, if not None → fit inside load_model
         self.distance_eps = distance_eps
 
-        self._skater_labels: Optional[np.ndarray] = None
-        self._cluster_models: List[Any] = []
-        self._cluster_centers: Optional[np.ndarray] = None
+        self._skater_labels: np.ndarray | None = None
+        self._cluster_models: list[Any] = []
+        self._cluster_centers: np.ndarray | None = None
         self._is_loaded: bool = False
 
         # indices (in attrs_name order) used for clustering / distances
@@ -274,9 +277,9 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
 
     def load_model(
         self,
-        gdf,
-        X: np.ndarray,
-        y: np.ndarray,
+        gdf:gpd.GeoDataFrame|None = None,
+        X: np.ndarray|None = None,
+        y: np.ndarray|None = None,
     ) -> None:
         """
         Fit the spatial mixture-of-experts:
@@ -289,6 +292,10 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         - X is **not** scaled yet; if scaler is provided, it will be fit here.
         - gdf[self.attrs_name] are the same features used to build X (possibly a subset).
         """
+        if(gdf is None or X is None or y is None):
+            msg = "gdf, X, and y must be provided to load_model."
+            raise ValueError(msg)
+
         X = np.asarray(X)
         y = np.asarray(y)
 
@@ -318,7 +325,8 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
             skater_model.solve()
 
         if not hasattr(skater_model, "labels_"):
-            raise RuntimeError("SKATER returned no labels_. Unexpected version.")
+            msg = "SKATER returned no labels_. Unexpected version."
+            raise RuntimeError(msg)
         labels = np.asarray(skater_model.labels_)
 
         unique_clusters = np.unique(labels)
@@ -329,8 +337,8 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         else:
             centers_space = feats_scaled
 
-        cluster_models: List[Any] = []
-        cluster_centers_list: List[np.ndarray] = []
+        cluster_models: list[Any] = []
+        cluster_centers_list: list[np.ndarray] = []
 
         # ----- 4. Train one model per cluster, compute cluster centers -----
         for cid in unique_clusters:
@@ -355,7 +363,7 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
 
     def fit(
         self,
-        gdf,
+        gdf:gpd.GeoDataFrame,
         X: np.ndarray,
         y: np.ndarray,
     ) -> "ClusterWeightedEnsembleSpatialWrapper":
@@ -373,7 +381,8 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         X_input is in the same space as training X (unscaled); scaling is handled here.
         """
         if self._cluster_centers is None:
-            raise RuntimeError("Model not loaded: no cluster centers.")
+            msg = "Model not loaded: no cluster centers."
+            raise RuntimeError(msg)
 
         X_input = np.asarray(X_input)
 
@@ -393,15 +402,17 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
 
         w = np.exp(-self.decay_constant * dists)
         w = w / np.sum(w, axis=1, keepdims=True)
+        w = np.asarray(w, dtype = np.float64)
         return w
 
     def predict(self, inputs: Any) -> np.ndarray:
         """
-        inputs: same feature space as training X (unscaled).
-        Scaling + subspace selection are handled internally.
+        Predict heights using as inputs the same space as training X (unscaled).
+        Scaling and subspace selection are handled internally.
         """
         if not self.is_loaded():
-            raise RuntimeError("Model not loaded. Call load_model(...) first.")
+            msg = "Model not loaded. Call load_model(...) first."
+            raise RuntimeError(msg)
 
         X_input = self.preprocess(inputs)
         X_input = np.asarray(X_input)
@@ -419,26 +430,31 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
         preds_matrix = np.stack(preds_per_cluster, axis=1)
 
         blended = np.sum(weights * preds_matrix, axis=1)
-        return self.postprocess(blended)
+        #Convert to array
+        blended = np.asarray(self.postprocess(blended), dtype = np.float64)
+        return blended
 
     @property
     def cluster_centers_(self) -> np.ndarray:
         if self._cluster_centers is None:
-            raise RuntimeError("Model not loaded.")
+            msg = "Model not loaded."
+            raise RuntimeError(msg)
         return self._cluster_centers
 
     @property
-    def experts_(self) -> List[Any]:
+    def experts_(self) -> list[Any]:
         if not self.is_loaded():
-            raise RuntimeError("Model not loaded.")
+            msg = "Model not loaded."
+            raise RuntimeError(msg)
         return self._cluster_models
 
     @property
     def labels_(self) -> np.ndarray:
         if self._skater_labels is None:
-            raise RuntimeError("Model not loaded.")
+            msg = "Model not loaded."
+            raise RuntimeError(msg)
         return self._skater_labels
-    
+
     def export_model(
             self,
             save_dir: str,
@@ -455,10 +471,10 @@ class ClusterWeightedEnsembleSpatialWrapper(BaseModelWrapper):
             Name of the file to save the model as.
         """
         if not self.is_loaded():
-            raise RuntimeError("Cannot export an unloaded model.")
+            msg = "Cannot export an unloaded model."
+            raise RuntimeError(msg)
 
-        else:
-            save_path = Path(save_dir) / f"{filename}.pkl"
-            if(not Path(save_dir).exists()):
-                Path(save_dir).mkdir(parents=True, exist_ok=True)
-            joblib.dump(self, save_path)
+        save_path = Path(save_dir) / f"{filename}.pkl"
+        if(not Path(save_dir).exists()):
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+        joblib.dump(self, save_path)

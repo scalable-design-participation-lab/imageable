@@ -2,17 +2,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
 from PIL import Image
 
 from imageable._models.base import BaseModelWrapper
 from imageable._models.materials.rmsnet import RMSNet
-from huggingface_hub import hf_hub_download,try_to_load_from_cache
 
 
 class RMSNetSegmentationWrapper(BaseModelWrapper):
@@ -25,11 +25,11 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
         num_classes: int = 20,
         device: str | None = None,
         sync_bn: bool = False,
-        weights_path: Path | None = None,
+        weights_path: str | Path | None = None,
         tile_size: int = 640,
         normalize_mean: tuple[float, float, float] = (0.485, 0.456, 0.406),
         normalize_std: tuple[float, float, float] = (0.229, 0.224, 0.225),
-        model_path: str = None,
+        model_path: str | None = None,
         verbose: bool = False
     ) -> None:
         self.backbone = backbone
@@ -49,7 +49,7 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
             ]
         )
         self._last_size: tuple[int, int] | None = None
-        self.model_path = model_path
+        self.model_path: str | Path | None = model_path
         self.verbose = verbose
 
         if(model_path is None or weights_path is None):
@@ -59,7 +59,7 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
             self.weights_path = Path(weights_path)
 
 
-    def _download_weights(self) -> str:
+    def _download_weights(self) -> tuple[str, str]:
         # Try to load from cache first
         rms_cached = try_to_load_from_cache(
             repo_id=self.MODEL_REPO,
@@ -117,16 +117,17 @@ class RMSNetSegmentationWrapper(BaseModelWrapper):
             raise TypeError("inputs must be np.ndarray or PIL.Image")
 
         if img.size != (self.tile_size, self.tile_size):
-            img = img.resize((self.tile_size, self.tile_size), Image.BILINEAR)
+            img = img.resize((self.tile_size, self.tile_size), Image.Resampling.BILINEAR)
 
         self._last_size = (img.height, img.width)
         tensor = self._transform(img).unsqueeze(0).to(self.device)  # [1,C,H,W]
-        return tensor
+        return cast("torch.Tensor", tensor)
 
     def predict(self, inputs: Any) -> Any:
         if not self.is_loaded():
             self.load_model()
         x = self.preprocess(inputs)
+        assert self.model is not None
         with torch.no_grad():
             logits = self.model(x)  # [1,C,H,W]
         return logits

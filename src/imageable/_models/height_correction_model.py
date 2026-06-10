@@ -1,16 +1,18 @@
-from imageable._models.base import BaseModelWrapper
-from imageable._correction_ensembles.cluster_weighted_ensemble import (
-    ClusterWeightedEnsembleWrapper,
-    ClusterWeightedEnsembleSpatialWrapper,
-)
-from huggingface_hub import hf_hub_download, try_to_load_from_cache
+from pathlib import Path
+from typing import Any
+
 import joblib
+import numpy as np
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
+from shapely.geometry import Polygon
+
+from imageable._correction_ensembles.cluster_weighted_ensemble import (
+    ClusterWeightedEnsembleSpatialWrapper,
+    ClusterWeightedEnsembleWrapper,
+)
 from imageable._extraction.extract import extract_building_properties
 from imageable._features.height.building_height import HeightEstimationParameters
-from shapely.geometry import Polygon
-import numpy as np
-from pathlib import Path
-from typing import ClassVar
+from imageable._models.base import BaseModelWrapper
 
 
 class HeightCorrectionModel(BaseModelWrapper):
@@ -68,12 +70,12 @@ class HeightCorrectionModel(BaseModelWrapper):
 
     def __init__(
         self,
-        pretrained: ClusterWeightedEnsembleWrapper | ClusterWeightedEnsembleSpatialWrapper = None,
+        pretrained: ClusterWeightedEnsembleWrapper | ClusterWeightedEnsembleSpatialWrapper | None = None,
         model_path: str | Path | None = None,
         scaler_path: str | Path | None = None,
     ) -> None:
         self.pretrained = pretrained
-        self.scaler = None
+        self.scaler:Any = None
         self.model_path = Path(model_path) if model_path is not None else None
         self.scaler_path = Path(scaler_path) if scaler_path is not None else None
 
@@ -82,10 +84,10 @@ class HeightCorrectionModel(BaseModelWrapper):
             raise ValueError(msg)
 
     def _load_local(self) -> None:
-        if not self.model_path.exists():
+        if self.model_path is not None and self.model_path.exists():
             msg = f"Model file not found: {self.model_path}"
             raise FileNotFoundError(msg)
-        if not self.scaler_path.exists():
+        if self.scaler_path is not None and self.scaler_path.exists():
             msg = f"Scaler file not found: {self.scaler_path}"
             raise FileNotFoundError(msg)
         self.pretrained = joblib.load(self.model_path)
@@ -93,7 +95,7 @@ class HeightCorrectionModel(BaseModelWrapper):
 
     def _download_model(
             self,
-            override=False) -> None:
+            override: bool = False) -> None:
         # --- 1) Ensemble model ---
         cached = try_to_load_from_cache(
             repo_id=self.MODEL_REPO,
@@ -142,14 +144,18 @@ class HeightCorrectionModel(BaseModelWrapper):
     def is_loaded(self) -> bool:
         return (self.pretrained is not None) and self.pretrained.is_loaded()
 
-    def preprocess(self, image):
+    def preprocess(
+            self,
+            image:Any)->Any:
         return super().preprocess(image)
 
-    def postprocess(self, outputs):
+    def postprocess(
+            self,
+            outputs:Any)->Any:
         return super().postprocess(outputs)
 
     @classmethod
-    def _resolve_feature_value(cls, properties_dictionary: dict, feature_name: str) -> float:
+    def _resolve_feature_value(cls, properties_dictionary: dict[str,Any], feature_name: str) -> float:
         """
         Resolve a scalar feature value from extracted properties.
 
@@ -164,11 +170,9 @@ class HeightCorrectionModel(BaseModelWrapper):
         return float(properties_dictionary[feature_name])
 
     @classmethod
-    def build_feature_vector(cls, properties_dictionary: dict, n_features: int | None = None) -> np.ndarray:
+    def build_feature_vector(cls, properties_dictionary: dict[str, Any], n_features: int | None = None) -> np.ndarray:
         """Build ordered feature vector for either legacy (14) or current (25) schemas."""
-        if n_features is None:
-            schema = cls.FEATURES_USED
-        elif n_features == len(cls.FEATURES_USED):
+        if n_features is None or n_features == len(cls.FEATURES_USED):
             schema = cls.FEATURES_USED
         elif n_features == len(cls.LEGACY_FEATURES_USED):
             schema = cls.LEGACY_FEATURES_USED
@@ -183,15 +187,15 @@ class HeightCorrectionModel(BaseModelWrapper):
             dtype=float,
         )
 
-    def predict(
+    def predict( #type: ignore[override]
         self,
         raw_height: float,
         estimation_params: HeightEstimationParameters,
-        building_id: int,
+        building_id: int | str,
         all_buildings: list[Polygon],
-        crs: str = "EPSG:4326",
-        street_view_image=None,
-        material_percentages: dict | None = None,
+        crs: int = 4326,
+        street_view_image: np.ndarray | None = None,
+        material_percentages: dict[str, Any] | None = None,
         verbose: bool = False,
     ) -> float:
         # For extracting we need (1) the building id, (2) the polygon,
@@ -199,16 +203,21 @@ class HeightCorrectionModel(BaseModelWrapper):
         # (5) material percentages (optional).
 
         if not self.is_loaded():
-            raise ValueError("Model not loaded. Please load the model before using this method.")
+            msg = "Model not loaded. Please load the model before using this method."
+            raise ValueError(msg)
 
         if self.scaler is None:
-            raise RuntimeError("Scaler not loaded. Make sure the scaler file is available and loaded.")
+            msg = "Scaler not loaded. Make sure the scaler file is available and loaded."
+            raise RuntimeError(msg)
 
+        if self.pretrained is None:
+            msg = "Model not loaded. Make sure the model file is available and loaded."
+            raise RuntimeError(msg)
         # Get the footprint for this building
         footprint = estimation_params.footprint
-
+        building_id_str = str(building_id)
         properties = extract_building_properties(
-            building_id=building_id,
+            building_id=building_id_str,
             footprint=footprint,
             all_buildings=all_buildings,
             crs=crs,
@@ -234,6 +243,7 @@ class HeightCorrectionModel(BaseModelWrapper):
         # Predict the corrected height (ensemble was trained on scaled features)
         corrected_height = self.pretrained.predict(x_scaled)[0]
         #print(self.pretrained.cluster_centers_)
+        corrected_height = float(corrected_height)
         return corrected_height
 
-    
+

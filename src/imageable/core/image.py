@@ -22,9 +22,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
+import numpy as np
 
 from imageable._images.acquisition import (
     ImageAcquisitionConfig,
@@ -47,7 +47,7 @@ def get_image(
     max_refinement_iterations: int = 5,
     overwrite: bool = True,
     street_network: Any | None = None,
-) -> tuple[NDArray, CameraParameters] | tuple[NDArray, CameraParameters, dict[str, Any]] | NDArray:
+) -> tuple[np.ndarray | None, CameraParameters] | tuple[np.ndarray | None, CameraParameters, dict[str, Any]] | np.ndarray | None:
     """
     Get street view image for a building footprint.
 
@@ -148,14 +148,13 @@ def get_image(
 
     if return_metadata:
         return result.image, result.camera_params, result.metadata
-    else:
-        return result.image
+    return result.image
 
 
 def load_image(
     image_path: str | Path,
     metadata_path: str | Path | None = None,
-) -> tuple[NDArray, CameraParameters, dict[str, Any]]:
+) -> tuple[np.ndarray | None, CameraParameters, dict[str, Any]]:
     """
     Load a previously saved building image with its metadata.
 
@@ -211,10 +210,10 @@ def load_image(
 
 # Re-export acquisition types for advanced users
 __all__ = [
-    "get_image",
-    "load_image",
+    "CameraParameters",
     "ImageAcquisitionConfig",
     "ImageAcquisitionResult",
     "acquire_building_image",
-    "CameraParameters",
+    "get_image",
+    "load_image",
 ]

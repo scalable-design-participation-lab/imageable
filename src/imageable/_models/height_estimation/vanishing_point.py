@@ -35,8 +35,8 @@ class VanishingPointCalculator:
         h = w
         vps_2d_ordered = np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
         dy = abs(vps_2d[:, 1] - h / 2)
-        dy_max_id = np.where(np.max(dy) - dy < 1)
-        dy_max_id = dy_max_id[0]
+        dy_max_where = np.where(np.max(dy) - dy < 1)
+        dy_max_id = dy_max_where[0]
 
         if dy_max_id.size == 1:
             v3 = vps_2d[dy_max_id[0], :]
@@ -52,8 +52,8 @@ class VanishingPointCalculator:
                 v3_id = dy_max_id[1]
 
         v_order = np.array([0, 1, 2])
-        vh_id = np.where(v_order != v3_id)
-        vh_id = vh_id[0]
+        vh_id_where = np.where(v_order != v3_id)
+        vh_id = vh_id_where[0]
 
         if vps_2d[vh_id[0], 0] > vps_2d[vh_id[1], 0]:
             v1 = vps_2d[vh_id[0], :]

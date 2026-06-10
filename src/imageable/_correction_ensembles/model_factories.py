@@ -2,23 +2,24 @@ from sklearn.ensemble import GradientBoostingRegressor
 
 try:
     from xgboost import XGBRegressor
-except Exception:  # pragma: no cover - optional dependency
-    XGBRegressor = None
+    _has_xgb = True
+except ImportError:  # pragma: no cover - optional dependency
+    _has_xgb = False
 
 
-def choose_model_for_cluster_gb(k: int):
+def choose_model_for_cluster_gb(k: int)->GradientBoostingRegressor:
     """Legacy/fallback factory based on GradientBoostingRegressor."""
     return GradientBoostingRegressor(random_state=0)
 
 
-def choose_model_for_cluster_xgb(k: int):
+def choose_model_for_cluster_xgb(k: int)->XGBRegressor|GradientBoostingRegressor:
     """
     XGBoost-first factory for cluster experts.
 
     Falls back to GradientBoostingRegressor if xgboost is unavailable, so
     this function remains safe to import in lightweight environments.
     """
-    if XGBRegressor is None:
+    if not _has_xgb:
         return choose_model_for_cluster_gb(k)
 
     return XGBRegressor(
@@ -34,13 +35,6 @@ def choose_model_for_cluster_xgb(k: int):
     )
 
 
-def choose_model_for_cluster(k: int):
-    """
-    Default factory used by training code and loaded pickle artifacts.
-
-    IMPORTANT:
-    This function MUST remain importable at module level so that
-    pickled ClusterWeightedEnsembleWrapper objects can be loaded
-    without errors.
-    """
+def choose_model_for_cluster(k: int)->XGBRegressor | GradientBoostingRegressor:
+    """Select a cluster model (The default is XGBoost)."""
     return choose_model_for_cluster_xgb(k)

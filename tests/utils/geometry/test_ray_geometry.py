@@ -27,10 +27,13 @@ def test_closest_ray_intersection():
     ray_direction[0] = ray_direction[0] / ray_magnitude
     ray_direction[1] = ray_direction[1] / ray_magnitude
 
-    ray_intersection, distance = get_closest_ray_intersection(
-        start_point=reversed_center, ray_direction=ray_direction, boundaries=boundaries, max_ray_length=500
+    ray_dir=(float(ray_direction[0]), float(ray_direction[1]))
+
+
+    _, distance = get_closest_ray_intersection(
+        start_point=reversed_center, ray_direction=ray_dir, boundaries=boundaries, max_ray_length=500
     )
-    print(distance)
+
     threshold = 0.001
 
     assert distance < threshold

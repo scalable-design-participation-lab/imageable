@@ -9,9 +9,6 @@ Tests cover:
 """
 
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -25,7 +22,6 @@ from imageable._extraction.extract import (
     extract_from_image_path,
     save_properties_batch,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -303,7 +299,7 @@ class TestSavePropertiesBatch:
 
         output_dir = tmp_path / "json_output"
 
-        save_properties_batch([props1, props2], str(output_dir), format="json")
+        save_properties_batch([props1, props2], str(output_dir), properties_format="json")
 
         # Check files were created
         assert (output_dir / "b001.json").exists()
@@ -322,7 +318,7 @@ class TestSavePropertiesBatch:
 
         output_dir = tmp_path / "csv_output"
 
-        save_properties_batch([props1, props2], str(output_dir), format="csv")
+        save_properties_batch([props1, props2], str(output_dir), properties_format="csv")
 
         # Check file was created
         csv_path = output_dir / "all_properties.csv"
@@ -340,7 +336,7 @@ class TestSavePropertiesBatch:
         props = BuildingProperties(building_id="test")
 
         with pytest.raises(ValueError, match="Unknown format"):
-            save_properties_batch([props], str(tmp_path), format="invalid")
+            save_properties_batch([props], str(tmp_path), properties_format="invalid")
 
 
 # =============================================================================
@@ -446,11 +442,11 @@ class TestEdgeCases:
     def test_integer_building_id(self, simple_polygon):
         """Test that integer building IDs are handled."""
         props = extract_building_properties(
-            building_id=42,
+            building_id=42,  # type: ignore[arg-type]
             footprint=simple_polygon,
         )
 
-        assert props.building_id == 42
+        assert props.building_id == 42  # type: ignore[comparison-overlap]
 
     def test_very_small_polygon(self):
         """Test extraction with very small polygon."""

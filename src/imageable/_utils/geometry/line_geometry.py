@@ -66,6 +66,7 @@ def point_line_distance(point: np.ndarray, line: tuple[float, float, float]) -> 
     """
     A, B, C = line
     distance = abs(A * point[0] + B * point[1] + C) / np.sqrt(A**2 + B**2)
+    distance = float(distance)
     return distance
 
 
@@ -134,6 +135,7 @@ def to_cam_ray(point: np.ndarray, K_inv: np.ndarray) -> np.ndarray:
     x, y = float(point[0]), float(point[1])
     homog = np.array([x, y, 1.0], dtype=float)
     ray = K_inv @ homog
+    ray = np.array(ray, dtype=float)
     return ray
 
 
@@ -173,6 +175,6 @@ def get_angle_between_segments(
         dot_product = np.clip(np.dot(line_1_unit, line_2_unit), -1.0, 1.0)
         angle_rad = np.arccos(dot_product)
         angle_deg = np.degrees(angle_rad)
-        return angle_deg
-
+        if(angle_deg is not None):
+            return float(angle_deg)
     return None

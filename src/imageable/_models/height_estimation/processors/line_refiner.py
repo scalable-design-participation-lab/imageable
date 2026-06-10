@@ -1,9 +1,13 @@
 import copy
+from typing import Any, cast
+
 import numpy as np
 
 
 class LineRefiner:
-    def extend_lines(self, pt1: np.ndarray, pt2: np.ndarray, segmt: np.ndarray, config: dict):
+    def extend_lines(
+        self, pt1: np.ndarray, pt2: np.ndarray, segmt: np.ndarray, config: dict[str, Any]
+    ) -> tuple[np.ndarray | list[Any], np.ndarray | list[Any]]:
         """
         Extend a vertical line segment inside the building mask only.
 
@@ -92,10 +96,10 @@ class LineRefiner:
         v_margin = edge_thres[0]
         h_margin = edge_thres[1] if edge_thres.size > 1 else edge_thres[0]
 
-        def is_near_edge(p):
+        def is_near_edge(p: np.ndarray) -> bool:
             r = p[0]
             c = p[1]
-            return (
+            return bool(
                 r < v_margin
                 or r > rows - 1 - v_margin
                 or c < h_margin
@@ -117,7 +121,7 @@ class LineRefiner:
 
         t = np.sum((p - a) * (b - a)) / l2
         projection = a + t * (b - a)
-        return projection
+        return cast(np.ndarray, projection)
 
     def refine_with_vpt(self, line: list[np.ndarray], vpt: np.ndarray) -> list[np.ndarray]:
         """From lineRefinement.py lines 264-279"""

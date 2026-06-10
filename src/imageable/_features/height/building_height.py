@@ -7,19 +7,19 @@ single-view metrology techniques applied to street-level imagery.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Union
+from typing import TYPE_CHECKING, Any
 
-import json
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
 from shapely import Polygon
 
+from imageable._extraction.extract import extract_building_properties
 from imageable._images.acquisition import (
     ImageAcquisitionConfig,
-    ImageAcquisitionResult,
     acquire_building_image,
     load_image_with_metadata,
 )
@@ -32,8 +32,9 @@ from imageable._models.height_estimation.height_calculator import (
 from imageable._models.huggingface.segformer_segmentation import SegformerSegmentationWrapper
 from imageable._models.lcnn.lcnn_wrapper import LCNNWrapper
 from imageable._models.vpts.vpts_wrapper import VPTSWrapper
-from imageable._extraction.extract import extract_building_properties
 
+if TYPE_CHECKING:
+    from imageable._models.height_correction_model import HeightCorrectionModel
 
 # Constants
 MIN_FOCAL_LENGTH = 1
@@ -164,7 +165,7 @@ class HeightEstimationParameters:
     use_pitch_only: bool = False
     use_detected_vpt_only: bool = False
     shift_segmentation_labels: bool = True
-    all_buildings: list[Polygon] = None
+    all_buildings: list[Polygon] | None = None
     image: NDArray[np.uint8] | None = None
     camera_parameters: GSVCameraParameters | None = None
 
@@ -209,7 +210,7 @@ class HeightEstimationParameters:
 
 
 def estimate_height_from_image(
-    image: NDArray[np.uint8],
+    image: NDArray[np.uint8] | None,
     camera_params: GSVCameraParameters,
     polygon: Polygon,
     config: HeightEstimationConfig | None = None,
@@ -258,8 +259,6 @@ def estimate_height_from_image(
     ...         polygon
     ...     )
     """
-    from imageable._models.line_param_selection_model import LineParameterSelectionModel
-
     if config is None:
         config = HeightEstimationConfig()
 
@@ -364,7 +363,7 @@ def estimate_height_from_image(
 def _predict_line_score_threshold(
     polygon: Polygon,
     all_buildings: list[Polygon] | None,
-    building_label: list[int],
+    _building_label: list[int] | None = None,
 ) -> float:
     """Predict optimal line score threshold based on building features."""
     from imageable._models.line_param_selection_model import LineParameterSelectionModel
@@ -374,7 +373,7 @@ def _predict_line_score_threshold(
         line_model.load_model()
 
         props = extract_building_properties(
-            building_id=building_label,
+            building_id="line_score_features",
             footprint=polygon,
             all_buildings=all_buildings,
             svi_height=None,
@@ -382,6 +381,9 @@ def _predict_line_score_threshold(
         )
 
         props_dict = props.to_dict()
+        if(line_model.corr_model is None):
+            return DEFAULT_LINE_SCORE_THRESHOLD
+
         vector = line_model.corr_model.build_feature_vector(
             props_dict,
             n_features=getattr(line_model.corr_model.scaler, "n_features_in_", None),
@@ -461,12 +463,12 @@ def building_height_from_single_view(
 
 def corrected_height_from_single_view(
     height_estimation_parameters: HeightEstimationParameters,
-    building_id: int,
+    building_id: int | str,
     all_buildings: list[Polygon],
-    crs: str = "EPSG:4326",
+    crs: int = 4326,
     verbose: bool = False,
-    correction_model: "HeightCorrectionModel" = None,
-) -> float:
+    correction_model: HeightCorrectionModel | None = None,
+) -> float|None:
     """
     Compute a corrected building height from a single Street View image.
 
@@ -476,11 +478,11 @@ def corrected_height_from_single_view(
     3. Computes material percentages from the image.
     4. Applies a correction model to refine the height estimate.
     """
-    from imageable._models.height_correction_model import HeightCorrectionModel
     from imageable._features.materials.building_materials import (
         BuildingMaterialProperties,
         get_building_materials_segmentation,
     )
+    from imageable._models.height_correction_model import HeightCorrectionModel
 
     if correction_model is None:
         correction_model = HeightCorrectionModel()
@@ -518,7 +520,7 @@ def corrected_height_from_single_view(
             bmp.footprint = height_estimation_parameters.footprint
             bmp.camera_parameters = camera_parameters
             material_percentages = get_building_materials_segmentation(bmp)
-        except Exception:
+        except (OSError, KeyError, json.JSONDecodeError):
             street_view_image = None
             material_percentages = None
     else:
@@ -534,7 +536,7 @@ def corrected_height_from_single_view(
 
                 # Extract camera parameters for materials
                 cam_dict = acq_result.metadata.get("camera_parameters", {})
-                camera_parameters = CameraParameters(
+                camera_parameters = GSVCameraParameters(
                     longitude=cam_dict.get("longitude", 0),
                     latitude=cam_dict.get("latitude", 0),
                 )
@@ -543,6 +545,8 @@ def corrected_height_from_single_view(
                 camera_parameters.pitch = cam_dict.get("pitch", 0)
                 camera_parameters.height = cam_dict.get("height", 640)
                 camera_parameters.width = cam_dict.get("width", 640)
+
+                assert street_view_image is not None
 
                 bmp = BuildingMaterialProperties(
                     img=street_view_image,
@@ -554,7 +558,8 @@ def corrected_height_from_single_view(
 
                 material_percentages = get_building_materials_segmentation(bmp)
 
-        except Exception:
+        except (OSError, KeyError, json.JSONDecodeError):
+
             pictures_dir = Path(height_estimation_parameters.pictures_directory)
             try:
                 image_path = pictures_dir / "image.jpg"
@@ -562,7 +567,7 @@ def corrected_height_from_single_view(
 
                 street_view_image = np.array(Image.open(image_path))
 
-                with open(metadata_path) as f:
+                with metadata_path.open() as f:
                     metadata = json.load(f)
 
                 camera_parameters_dict = metadata["camera_parameters"]
@@ -586,11 +591,14 @@ def corrected_height_from_single_view(
 
                 material_percentages = get_building_materials_segmentation(bmp)
 
-            except Exception:
+            except Exception: #noqa: BLE001
                 street_view_image = None
                 material_percentages = None
 
     # Apply correction model
+    if(raw_height is None):
+        return None
+
     corrected_height = correction_model.predict(
         raw_height=raw_height,
         estimation_params=height_estimation_parameters,
@@ -610,7 +618,7 @@ def corrected_height_from_single_view(
 # ============================================================================
 
 
-def collect_heights(results: dict) -> list[float]:
+def collect_heights(results: dict[str, Any]) -> list[float]:
     """
     Collect all estimated heights from the results dictionary.
 
@@ -627,7 +635,7 @@ def collect_heights(results: dict) -> list[float]:
     return [line[0] for building in results["heights"] for line in building["lines"]]
 
 
-def get_filtered_lines(results: dict):
+def get_filtered_lines(results: dict[str, Any])->list[tuple[Any, Any]]:
     """
     Return the final filtered line segments used by the height calculator.
 
@@ -641,10 +649,8 @@ def get_filtered_lines(results: dict):
     return lines
 
 
-def count_filtered_lines(results: dict) -> int:
-    """
-    Number of filtered lines N_l used in the final height computation.
-    """
+def count_filtered_lines(results: dict[str, Any]) -> int:
+    """Compute the number of filtered lines N_l used in the final height calculation."""
     return sum(len(building["lines"]) for building in results["heights"])
 
 
@@ -673,7 +679,7 @@ def mean_no_outliers(values: list[float] | NDArray[np.floating]) -> float:
 
 
 def estimate_height_and_lines_from_image(
-    image_path: Union[str, Path],
+    image_path: str | Path,
     segformer_model: SegformerSegmentationWrapper,
     lcnn_model: LCNNWrapper,
     vpts_model: VPTSWrapper,
@@ -699,15 +705,15 @@ def estimate_height_and_lines_from_image(
     # Segmentation
     seg_raw: NDArray[np.int_] = segformer_model.predict(image)
     seg_raw = seg_raw.squeeze().astype("uint8") + 1
-    seg: NDArray[np.int_] = segformer_model._remap_labels(seg_raw, remapping_dict)
+    seg: np.ndarray[Any, np.dtype[np.int_]] = segformer_model._remap_labels(seg_raw, remapping_dict)
 
     # LCNN
-    lcnn_results: dict = lcnn_model.predict(image)
+    lcnn_results: dict[str, Any] = lcnn_model.predict(image)
     lines: NDArray[np.floating] = lcnn_results["processed_lines"]
     line_scores: NDArray[np.floating] = lcnn_results["processed_scores"]
 
     # Vanishing points
-    vpts_dictionary: dict = vpts_model.predict(
+    vpts_dictionary: dict[str, Any] = vpts_model.predict(
         image,
         FOV=fov,
         seed=42,

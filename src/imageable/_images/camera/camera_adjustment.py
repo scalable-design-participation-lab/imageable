@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -6,10 +7,10 @@ from PIL import Image
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from imageable._images.camera import camera_parameters
 from imageable._images.camera.building_observation import ObservationPointEstimator
 from imageable._images.camera.camera_parameters import CameraParameters
-from imageable._images.download import _save_metadata, download_street_view_image
+from imageable._images.download import _save_metadata, fetch_image
+from imageable._images.image import ImageMetadata
 from imageable._models.huggingface.floor_sky_ratio_calculator import FloorSkyRatioCalculator
 
 
@@ -74,7 +75,7 @@ class CameraParametersRefiner:
     def __init__(
         self,
         polygon: Polygon,
-        model: FloorSkyRatioCalculator = None,
+        model: FloorSkyRatioCalculator | None = None,
         street_network: Any | None = None,
     ) -> None:
         self.polygon = polygon
@@ -85,6 +86,8 @@ class CameraParametersRefiner:
         if model is None:
             self.model = FloorSkyRatioCalculator()
             self.model.load_model()
+        else:
+            self.model = model
 
     def adjust_parameters(
         self,
@@ -95,7 +98,7 @@ class CameraParametersRefiner:
         save_reel: bool = False,
         overwrite_images: bool = False,
         confidence_detection: float = 0.5,
-    ) -> tuple[CameraParameters, bool, np.ndarray | None, dict | None]:
+    ) -> tuple[CameraParameters, bool, np.ndarray | None, dict[str, Any] | None]:
         """
         Obtain CameraParameters for a view where the
         full façade of the buildings is visible by adjusting the pitch and fov
@@ -141,19 +144,20 @@ class CameraParametersRefiner:
         self.pitch_delta = self.MAX_PITCH_CHANGE / max_number_of_images
         self.fov_delta = self.MAX_FOV_CHANGE / max_number_of_images
 
-        image = None
+        image: np.ndarray | None = None
         progress = tqdm(total=max_number_of_images)
-        last_metadata_dict = None
+        metadata: ImageMetadata | None = None
+        last_metadata_dict: dict[str, Any] | None = None
 
         while not view_obtained:
             # Case where the maximum number of images has been taken.
             if images_taken + 1 >= max_number_of_images:
                 if pictures_directory is not None:
                     # Fetch the image and save it
-                    image, metadata = download_street_view_image(
+                    image, metadata = fetch_image(
                         api_key,
                         camera_parameters,
-                        Path(pictures_directory) / (self.DEFAULT_IMAGE_NAME + self.EXTENSION),
+                        str(Path(pictures_directory) / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)),
                         overwrite_image=overwrite_images,
                     )
                     # We return the camera parameters
@@ -167,14 +171,14 @@ class CameraParametersRefiner:
             # Fetch the image
             # If the user asked to save the reel save the image
             if pictures_directory is not None and save_reel:
-                image, metadata = download_street_view_image(
+                image, metadata = fetch_image(
                     api_key,
                     camera_parameters,
-                    Path(pictures_directory) / f"{images_taken}" / (self.DEFAULT_IMAGE_NAME + self.EXTENSION),
+                    str(Path(pictures_directory) / f"{images_taken}" / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)),
                     overwrite_image=overwrite_images,
                 )
             else:
-                image, metadata = download_street_view_image(api_key, camera_parameters, None, overwrite_image=overwrite_images)
+                image, metadata = fetch_image(api_key, camera_parameters, None, overwrite_image=overwrite_images)
             last_metadata_dict = metadata.to_dict() if metadata is not None else None
 
             if image is not None:
@@ -183,6 +187,8 @@ class CameraParametersRefiner:
                 ratios_dictionary = self.model.predict(image_bgr, conf=confidence_detection)
                 sky_ratio = ratios_dictionary["sky_ratio"]
                 floor_ratio = ratios_dictionary["floor_ratio"]
+                assert sky_ratio is not None, "Sky ratio could not be computed."
+                assert floor_ratio is not None, "Floor ratio could not be computed."
                 if (sky_ratio >= 0 and sky_ratio <= self.MIN_SKY_RATIO) and floor_ratio > self.MIN_FLOOR_RATIO:
                     # We increase the pitch
                     camera_parameters.pitch += self.pitch_delta
@@ -210,13 +216,13 @@ class CameraParametersRefiner:
                     view_obtained = True
                     if pictures_directory is not None:
                         # We save the image and metadata
-                        pictures_directory = Path(pictures_directory)
-                        pictures_directory.mkdir(parents=True, exist_ok=True)
-                        path_to_image = pictures_directory / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)
-                        path_to_metadata = pictures_directory / "metadata.json"
+                        pictures_path = Path(pictures_directory)
+                        pictures_path.mkdir(parents=True, exist_ok=True)
+                        path_to_image = pictures_path / (self.DEFAULT_IMAGE_NAME + self.EXTENSION)
                         if overwrite_images or not path_to_image.exists():
                             Image.fromarray(image).save(path_to_image)
-                            _save_metadata(path_to_metadata, metadata.to_dict())
+                            if metadata is not None:
+                                _save_metadata(str(path_to_image), metadata.to_dict())
             else:
                 # If the image is None, we return the camera parameters
                 # and None as the image

@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -112,9 +112,8 @@ class BuildingMaterialProperties:
     pixel_density_threshold_for_cutting_building: float = 0.15
     return_percentages_and_areas: bool = True
 
-
-# ruff: noqa: PLR0911, PLR0912, PLR0915
-def get_building_materials_segmentation(properties: BuildingMaterialProperties) -> dict[int, float] | None:
+# ruff: noqa: PLR0911
+def get_building_materials_segmentation(properties: BuildingMaterialProperties) -> dict[str, Any] | None:
     """
     Perform building material segmentation based on the provided properties.
 
@@ -150,7 +149,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
     logits = wrapper.predict(properties.img)
     out = wrapper.postprocess(logits)
 
-    fractions = dict.fromkeys(range(properties.num_classes), 0)
+    fractions: dict[int, float] = dict.fromkeys(range(properties.num_classes), 0.0)
     mask = out["mask"]
     masked_img = None
     if properties.restrict_calculations_to_mask:
@@ -191,11 +190,8 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         footprint_coords = list(properties.footprint.exterior.coords)
         footprint_coords = [(p[0], p[1]) for p in footprint_coords]
         hull = get_convex_hull(footprint_coords, close=True)
-        parallelogram = get_minimum_area_parallelogram(hull)
-        if parallelogram is None:
-            parallelogram = hull
-        if len(parallelogram) == 0:
-            parallelogram = hull
+        # Fall back to the hull if the parallelogram fails (None) or is empty
+        parallelogram: list[Any] = get_minimum_area_parallelogram(hull) or hull
         # We need to get the side of the parallelogram that the visibility ray intersects
         gdf_parallelogram = gpd.GeoDataFrame(geometry=[Polygon(footprint_coords)], crs="EPSG:4326")
 
@@ -252,7 +248,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         unique, counts = np.unique(mask, return_counts=True)
 
     for u, c in zip(unique, counts, strict=False):
-        fractions[int(u)] = float(c) / float(total_pixels)
+        fractions[int(u)] = float(float(c) / float(total_pixels))
 
     # If footprint and height are provided we will calculate the material areas in
     # square meters.
@@ -306,7 +302,7 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         plt.show()
 
     physical_units = False
-    area_multiplier_m2 = None
+    area_multiplier_m2:float = 1.0
     if (
         properties.footprint is not None
         and properties.height is not None
@@ -318,11 +314,8 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
         # Get the convex hull
         hull = get_convex_hull(footprint_coords, close=True)
         # Get the minimum area parallelogram
-        parallelogram = get_minimum_area_parallelogram(hull)
-        if parallelogram is None:
-            parallelogram = hull
-        if len(parallelogram) == 0:
-            parallelogram = hull
+        # Fall back to the hull if the parallelogram fails (None) or is empty
+        parallelogram = get_minimum_area_parallelogram(hull) or hull
         # We need to get the side of the parallelogram that the visibility ray intersects
         gdf_parallelogram = gpd.GeoDataFrame(geometry=[Polygon(parallelogram)], crs="EPSG:4326")
         # I guess I need to prepare everything
@@ -356,11 +349,11 @@ def get_building_materials_segmentation(properties: BuildingMaterialProperties) 
             areas_units = properties.units if properties.units in ["m2", "ft2", "mi2"] else "m2"
             areas = {k: v * area_multiplier_m2 for k, v in fractions.items()}
             if areas_units == "ft2":
-                for k in areas:
-                    areas[k] = areas[k] * AreaConversionFactors.SQM_TO_SQFT.value
+                for k, v in areas.items():
+                    areas[k] = v * AreaConversionFactors.SQM_TO_SQFT.value
             elif areas_units == "mi2":
-                for k in areas:
-                    areas[k] = areas[k] * AreaConversionFactors.SQM_TO_SQMI.value
+                for k, v in areas.items():
+                    areas[k] = v * AreaConversionFactors.SQM_TO_SQMI.value
             areas_out = {labels[k]: v for k, v in areas.items()}
         return {
             "percentages": percentages_out,

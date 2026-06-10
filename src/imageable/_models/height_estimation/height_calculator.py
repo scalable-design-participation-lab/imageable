@@ -4,6 +4,7 @@ This is the main orchestration function that ties everything together.
 """
 
 from dataclasses import dataclass
+from typing import Any, cast
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -22,8 +23,8 @@ sm.set_array([])
 colors_tables = ["blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive", "cyan"]
 
 
-def c(x):
-    return sm.to_rgba(x)
+def c(x:float) -> tuple[float, float, float, float]|np.ndarray:
+    return sm.to_rgba(float(x)) # type: ignore[arg-type]
 
 
 @dataclass
@@ -67,7 +68,7 @@ class HeightCalculator:
     No file I/O - all data passed as parameters.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Initialize calculator with configuration.
 
@@ -80,7 +81,7 @@ class HeightCalculator:
         self.line_classifier = LineClassifier()
         self.line_refiner = LineRefiner()
 
-    # ruff: noqa: PLR0913, PLR0911
+    # ruff: noqa: PLR0911
     def calculate_heights(
         self,
         data: HeightEstimationInput,
@@ -89,7 +90,7 @@ class HeightCalculator:
         use_pitch_only: bool = False,
         use_detected_vpt_only: bool = False,
         verbose: bool = False,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """
         Calculate building heights from input data.
 
@@ -118,7 +119,7 @@ class HeightCalculator:
             # Store calculated VP and vline for later use
             if use_pitch_only or (not use_detected_vpt_only and pitch is not None):
                 vertical_v, vline = self.vp_calc.vp_calculation_with_pitch(
-                    camera.image_width, camera.image_height, pitch, camera.focal_length
+                    camera.image_width, camera.image_height, cast("float", pitch), camera.focal_length
                 )
             else:
                 vertical_v = None
@@ -257,7 +258,7 @@ class HeightCalculator:
 
     def _filter_lines_in_buildings(
         self, lines: np.ndarray, line_scores: np.ndarray, segmentation: np.ndarray, vps: np.ndarray
-    ) -> list:
+    ) -> list[Any]:
         """Filter and classify line segments."""
         vert_lines = []
         t_score = float(self.config["LINE_CLASSIFY"]["LineScore"])
@@ -284,10 +285,11 @@ class HeightCalculator:
         # Merge nearby lines
         return self._merge_lines(vert_line_refine)
 
-    def _extend_vertical_lines(self, vertical_lines: list, segmentation: np.ndarray, vptz: np.ndarray) -> list:
+    def _extend_vertical_lines(
+        self, vertical_lines: list[Any], segmentation: np.ndarray, vptz: np.ndarray
+    ) -> list[Any]:
         """Extend vertical lines to building boundaries, then drop very short ones."""
-
-        extd_lines: list = []
+        extd_lines: list[Any] = []
 
         building_label = int(self.config["SEGMENTATION"]["BuildingLabel"])
 
@@ -328,18 +330,18 @@ class HeightCalculator:
 
     def _calculate_line_heights(
         self,
-        verticals: list,
+        verticals: list[Any],
         vps: np.ndarray,
         camera: CameraParameters,
         use_detected_vpt_only: bool,
         vertical_v: np.ndarray | None,
         vline: np.ndarray | None,
         ground_truth: np.ndarray | None,
-    ) -> list:
+    ) -> list[Any]:
         """Calculate height for each vertical line."""
         invK = np.linalg.inv(camera.intrinsic_matrix)
         ht_set = []
-        check_list = []
+        check_list: list[Any] = []
 
         for line in verticals:
             a = line[0]  # Top point
@@ -384,7 +386,7 @@ class HeightCalculator:
                 continue
 
             # Get ground truth if available
-            ht_gt_org, ht_gt_expd = 0, 0
+            ht_gt_org, ht_gt_expd = 0.0, 0.0
             if ground_truth is not None:
                 ht_gt_org, ht_gt_expd = self._measure_ground_truth(
                     ground_truth, np.asarray([a[1], a[0]]), np.asarray([b[1], b[0]])
@@ -394,7 +396,7 @@ class HeightCalculator:
 
         return ht_set
 
-    def _merge_lines(self, lines: list) -> list:
+    def _merge_lines(self, lines: list[Any]) -> list[Any]:
         """Merge nearby parallel lines."""
         merged = []
         used = [False] * len(lines)
@@ -427,7 +429,7 @@ class HeightCalculator:
 
         return merged
 
-    def _is_duplicate(self, a: np.ndarray, b: np.ndarray, check_list: list) -> bool:
+    def _is_duplicate(self, a: np.ndarray, b: np.ndarray, check_list: list[Any]) -> bool:
         """Check if line (a,b) is duplicate."""
         return any(a0 == a[0] and a1 == a[1] and b0 == b[0] and b1 == b[1] for a0, a1, b0, b1 in check_list)
 
@@ -476,8 +478,8 @@ class HeightCalculator:
             if s < t:
                 continue
             plt.plot([a[1], b[1]], [a[0], b[0]], c=c(s), linewidth=2, zorder=s)
-            plt.scatter(a[1], a[0], **PLTOPTS)
-            plt.scatter(b[1], b[0], **PLTOPTS)
+            plt.scatter(a[1], a[0], **PLTOPTS)  # type: ignore[arg-type]
+            plt.scatter(b[1], b[0], **PLTOPTS)  # type: ignore[arg-type]
 
         # Show vanishing points
         if use_pitch_only and vertical_v is not None and vline is not None:
@@ -492,7 +494,7 @@ class HeightCalculator:
         plt.title("Input: Lines, Segmentation, and Vanishing Points")
         plt.show()
 
-    def _visualize_results(self, image: np.ndarray, segmentation: np.ndarray, grouped_lines: list) -> None:
+    def _visualize_results(self, image: np.ndarray, segmentation: np.ndarray, grouped_lines: list[Any]) -> None:
         """Visualize final height results."""
         building_mask = (segmentation == 1)
         plt.figure(figsize=(10, 8))
@@ -530,8 +532,8 @@ class HeightCalculator:
                 ht, a, b, *_ = group[j]
                 color = colors_tables[i % len(colors_tables)]
                 (ax_line,) = plt.plot([a[1], b[1]], [a[0], b[0]], c=color, linewidth=3)
-                plt.scatter(a[1], a[0], **PLTOPTS)
-                plt.scatter(b[1], b[0], **PLTOPTS)
+                plt.scatter(a[1], a[0], **PLTOPTS)  # type: ignore[arg-type]
+                plt.scatter(b[1], b[0], **PLTOPTS)  # type: ignore[arg-type]
 
             if len(group) > 2:
                 ax_legends.append(ax_line)
@@ -553,7 +555,7 @@ class ImageableHeightEstimator:
     Works directly with numpy arrays - no file I/O.
     """
 
-    def __init__(self, config: dict | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """
         Initialize with configuration.
 
@@ -563,7 +565,7 @@ class ImageableHeightEstimator:
         self.config = config or self._get_default_config()
         self.calculator = HeightCalculator(self.config)
 
-    def _get_default_config(self) -> dict:
+    def _get_default_config(self) -> dict[str, Any]:
         """Get default configuration."""
         return {
             "STREET_VIEW": {"HVFoV": "90.0", "CameraHeight": "2.5"},
@@ -584,7 +586,7 @@ class ImageableHeightEstimator:
         pitch: float = 25.0,
         use_pitch_only: bool = False,
         verbose: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Process image data to estimate building heights.
 

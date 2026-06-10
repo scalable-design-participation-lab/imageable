@@ -19,7 +19,7 @@ RESPONSE_TIMEOUT = 10
 def download_street_view_image(
     api_key: str,
     building_polygon_or_camera: Any,
-    save_path: str | None = None,
+    save_path: str | None | Path = None,
     overwrite_image: bool = True,
 ) -> dict[str, Any] | tuple[npt.NDArray[np.uint8] | None, ImageMetadata | None]:
     """
@@ -41,26 +41,28 @@ def download_street_view_image(
     If building_polygon passed: dict with "image" and "metadata" keys
     If CameraParameters passed: tuple of (image_array, ImageMetadata)
     """
+    save_path_str = str(save_path) if save_path is not None else None
+
     # Check if we received CameraParameters directly
     if isinstance(building_polygon_or_camera, CameraParameters):
         # Direct camera parameters - call fetch_image and return tuple
         return fetch_image(
             api_key,
             building_polygon_or_camera,
-            save_path,
+            save_path_str,
             overwrite_image=overwrite_image,
         )
-    
+
     # It's a polygon - compute camera parameters from it
     polygon = building_polygon_or_camera
-    
+
     # Try to find optimal observation point
     from imageable._images.camera.building_observation import ObservationPointEstimator
-    
+
     try:
         estimator = ObservationPointEstimator(polygon)
         observation_point, _, heading, _ = estimator.get_observation_point()
-        
+
         if observation_point is not None and heading is not None:
             camera_parameters = CameraParameters(
                 latitude=observation_point[1],  # (lon, lat) -> lat
@@ -99,7 +101,7 @@ def download_street_view_image(
     image, metadata = fetch_image(
         api_key,
         camera_parameters,
-        save_path,
+        save_path_str,
         overwrite_image=overwrite_image,
     )
 

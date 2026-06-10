@@ -10,7 +10,7 @@ from imageable._features.materials.building_materials import (
 from imageable._images.camera.camera_parameters import CameraParameters
 
 
-def _get_mock_building_image():
+def _get_mock_building_image() -> np.ndarray:
     img = np.zeros((640, 640, 3), dtype=np.uint8)
     start_x = 160
     end_y = 480
@@ -50,8 +50,10 @@ def test_building_material_properties():
 
     #Assert some of the properties that are crucial for building material areas calculation
     assert building_material_props.img is not None
+    assert building_material_props.camera_parameters is not None
     assert building_material_props.camera_parameters.heading == 0.0
     assert building_material_props.height == 15.0
+    assert building_material_props.footprint is not None
     assert building_material_props.footprint.area == 100.0
     assert isinstance(building_material_props.footprint, Polygon)
 
@@ -81,6 +83,7 @@ def test_building_material_percentages():
 
     material_percentages = get_building_materials_segmentation(building_material_props)
 
+    assert material_percentages is not None
     percentages_list = [material_percentages[k] for k in list(material_percentages.keys())]
     #The sum of the percentages list should equal 1
     #If at some point we decide to multiply the values by 100 this test should be updated.
@@ -116,6 +119,7 @@ def test_building_material_areas():
     material_areas = get_building_materials_segmentation(building_material_props)
 
     #The total area should be 10 x 15 if my intuition is correct.
+    assert material_areas is not None
     material_areas_list = [material_areas[k] for k in list(material_areas.keys())]
     total_area = sum(material_areas_list)
 

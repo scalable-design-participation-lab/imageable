@@ -5,7 +5,7 @@ from typing import Any, cast
 import numpy as np
 import torch
 from PIL import Image
-from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
+from transformers import AutoImageProcessor, SegformerForSemanticSegmentation, BaseImageProcessor
 
 from imageable._models.huggingface.base import HuggingFaceModelWrapper
 
@@ -47,20 +47,21 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         self.model_name = model_name
         self.device = device or self._resolve_device()
         self.model: SegformerForSemanticSegmentation | None = None
-        self.processor: AutoImageProcessor | None = None
+        self.processor: BaseImageProcessor | None = None
+
         if palette_path is None:
             self._ade_palette: list[int] = self._load_palette_from_json("src/imageable/assets/ade20k_palette.json")
         else:
-            self._ade_palette: list[int] = self._load_palette_from_json(palette_path)
+            self._ade_palette = self._load_palette_from_json(palette_path)
 
     def load_model(self) -> None:
         """
         Load both the image processor and the SegFormer model onto the
         selected device.
         """
-        self.processor = AutoImageProcessor.from_pretrained(self.model_name)
+        self.processor = AutoImageProcessor.from_pretrained(self.model_name) #type: ignore[no-untyped-call]
         self.model = SegformerForSemanticSegmentation.from_pretrained(self.model_name)
-        self.model.to(self.device)
+        self.model.to(self.device) # type: ignore[arg-type]
 
     def is_loaded(self) -> bool:
         """
@@ -73,7 +74,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         """
         return self.model is not None and self.processor is not None
 
-    def preprocess(self, image: Image.Image | np.ndarray[Any, np.dtype[np.float64]]) -> dict[str, torch.Tensor]:
+    def preprocess(self, image: Image.Image | np.ndarray[Any, np.dtype[np.uint8]]) -> dict[str, torch.Tensor]:
         """
         Preprocess image for SegFormer model.
 
@@ -132,7 +133,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         return cast("np.ndarray[Any, np.dtype[np.int64]]", prediction)
 
     def predict(
-        self, image: Image.Image | np.ndarray[Any, np.dtype[np.float64]]
+        self, image: Image.Image | np.ndarray[Any, np.dtype[np.uint8]]
     ) -> np.ndarray[Any, np.dtype[np.int64]]:
         """
         Perform semantic segmentation on a single image.
@@ -233,7 +234,7 @@ class SegformerSegmentationWrapper(HuggingFaceModelWrapper):
         np.ndarray
             Remapped segmentation map.
         """
-        remapped = np.zeros_like(seg, dtype=np.uint8)
+        remapped = np.zeros_like(seg, dtype=np.int_)
         for src, tgt in mapping.items():
             remapped[seg == src] = tgt
         return remapped

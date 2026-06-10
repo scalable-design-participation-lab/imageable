@@ -1,8 +1,14 @@
 import numpy as np
-from shapely.geometry import Polygon, Point
 import pytest
+from shapely.geometry import Point, Polygon
 
-from imageable._utils.geometry.polygons import get_polygon_edge_midpoints, get_polygon_outward_vectors, get_signed_area, get_convex_hull, get_minimum_area_parallelogram
+from imageable._utils.geometry.polygons import (
+    get_convex_hull,
+    get_minimum_area_parallelogram,
+    get_polygon_edge_midpoints,
+    get_polygon_outward_vectors,
+    get_signed_area,
+)
 
 
 def test_signed_area():
@@ -46,19 +52,19 @@ def test_polygon_edge_midpoints():
 
 
 def test_polygon_outward_vectors():
-    polygon_points = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    polygon_points:list[tuple[float, float]] = [(0, 0), (1, 0), (1, 1), (0, 1)]
     polygon = Polygon(polygon_points)
 
     outward_vectors = get_polygon_outward_vectors(polygon)
-    expected_vectors = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+    expected_vectors:list[tuple[float, float]] = [(0, -1), (1, 0), (0, 1), (-1, 0)]
 
     assert len(outward_vectors) == len(expected_vectors)
     equal_conditions = []
     threshold = 0.0001
 
     for i in range(len(outward_vectors)):
-        x = outward_vectors[i]
-        y = expected_vectors[i]
+        x:tuple[float, float] = outward_vectors[i]
+        y:tuple[float, float] = expected_vectors[i]
 
         distance = np.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2)
 
@@ -73,7 +79,7 @@ def test_polygon_outward_vectors():
 
 
 def test_convex_hull():
-    points = [(0, 0), (2, 0), (2, 2), (0, 2), (1, 1)]
+    points: list[tuple[float,float]] = [(0, 0), (2, 0), (2, 2), (0, 2), (1, 1)]
     hull = get_convex_hull(points)
 
     poly = Polygon(hull)
@@ -81,14 +87,15 @@ def test_convex_hull():
 
 
 def test_min_parallelogram_of_square_is_the_square():
-    square = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    square:list[tuple[float, float]] = [(0, 0), (1, 0), (1, 1), (0, 1)]
     corners = get_minimum_area_parallelogram(square)
 
+    assert corners is not None
     poly = Polygon([tuple(c) for c in corners[:4]])
     assert poly.area == pytest.approx(1.0)
 
 def test_result_is_a_parallelogram():
-    pts = [(0, 0), (3, 0), (4, 2), (1, 2)]  
+    pts: list[tuple[float, float]] = [(0, 0), (3, 0), (4, 2), (1, 2)]
     c = get_minimum_area_parallelogram(pts)
-
-    np.testing.assert_allclose(c[0] + c[2], c[1] + c[3]) 
+    assert c is not None
+    np.testing.assert_allclose(c[0] + c[2], c[1] + c[3])

@@ -5,8 +5,9 @@ This module provides the main function to extract all properties from a building
 given its polygon and optional image/model data.
 """
 
+
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -99,50 +100,50 @@ def extract_building_properties(
 
     # ========== 1. Footprint Properties ==========
     if verbose:
-        print(f"[1/4] Extracting footprint properties for {building_id}...")
+        print(f"[1/4] Extracting footprint properties for {building_id}...")  # noqa: T201
 
     footprint_props = extract_footprint_properties(
         polygon=footprint, all_footprints=all_buildings, crs=crs, neighbor_radius=neighbor_radius
     )
     properties.update_footprint_features(footprint_props)
     if verbose:
-        print(f"  ✓ Area: {properties.projected_area:.2f} m²")
-        print(f"  ✓ Complexity: {properties.complexity:.4f}")
+        print(f"  ✓ Area: {properties.projected_area:.2f} m²")  # noqa: T201
+        print(f"  ✓ Complexity: {properties.complexity:.4f}")  # noqa: T201
     if all_buildings and verbose:
-        print(f"  ✓ Neighbors: {properties.neighbor_count}")
+        print(f"  ✓ Neighbors: {properties.neighbor_count}")  # noqa: T201
 
     # ========== 2. Height ==========
     if verbose:
-        print("[2/4] Processing height...")
+        print("[2/4] Processing height...")  # noqa: T201
 
     if svi_height is not None:
         properties.update_height(svi_height)
         if verbose:
-            print(f"  ✓ Height: {svi_height:.2f} m")
+            print(f"  ✓ Height: {svi_height:.2f} m")  # noqa: T201
     elif verbose:
-        print("  ⊘ No height provided")
+        print("  ⊘ No height provided")  # noqa: T201
 
     # ========== 3. Material Percentages ==========
     if verbose:
-        print("[3/4] Processing materials...")
+        print("[3/4] Processing materials...")  # noqa: T201
 
     if material_percentages is not None:
         properties.update_material_percentages(material_percentages)
         if verbose:
-            print(f"  ✓ Materials: {len(material_percentages)} types")
+            print(f"  ✓ Materials: {len(material_percentages)} types")  # noqa: T201
     elif verbose:
-        print("  ⊘ No materials provided")
+        print("  ⊘ No materials provided")  # noqa: T201
 
     if(material_areas is not None):
         properties.update_material_areas(material_areas, material_areas_units)
         if verbose:
-            print(f"  ✓ Material Areas: {len(material_areas)} types")
+            print(f"  ✓ Material Areas: {len(material_areas)} types")  # noqa: T201
     elif verbose:
-        print("  ⊘ No material areas provided")
+        print("  ⊘ No material areas provided")  # noqa: T201
 
     # ========== 4. Image Properties ==========
     if verbose:
-        print("[4/4] Extracting image properties...")
+        print("[4/4] Extracting image properties...")  # noqa: T201
 
     if street_view_image is not None and building_mask is not None:
         image_calc = ImageCalculator(img=street_view_image, building_mask=building_mask)
@@ -151,21 +152,20 @@ def extract_building_properties(
         properties.update_image_features(image_features)
 
         if verbose:
-            print("  ✓ Color features extracted")
+            print("  ✓ Color features extracted")  # noqa: T201
         if verbose:
-            print("  ✓ Shape features extracted")
-        if window_mask is not None or door_mask is not None:
-            if verbose:
-                print("  ✓ Façade features extracted")
+            print("  ✓ Shape features extracted")  # noqa: T201
+        if (window_mask is not None or door_mask is not None) and verbose:
+            print("  ✓ Façade features extracted")  # noqa: T201
     elif verbose:
-        print("  ⊘ No image/mask provided")
+        print("  ⊘ No image/mask provided")  # noqa: T201
     if verbose:
-        print(f"\n✓ Complete! Total features: {len(properties.get_feature_vector())}")
+        print(f"\n✓ Complete! Total features: {len(properties.get_feature_vector())}")  # noqa: T201
     return properties
 
 
 def batch_extract_properties(
-    buildings: list[dict], neighbor_radius: float = 600.0, crs: int = 4326, verbose: bool = True
+    buildings: list[dict[str, Any]], neighbor_radius: float = 600.0, crs: int = 4326, verbose: bool = True
 ) -> list[BuildingProperties]:
     """
     Extract properties for multiple buildings in batch.
@@ -207,9 +207,9 @@ def batch_extract_properties(
 
     for i, building in enumerate(buildings):
         if verbose:
-            print(f"\n{'=' * 60}")
-            print(f"Building {i + 1}/{len(buildings)}: {building['id']}")
-            print(f"{'=' * 60}")
+            print(f"\n{'=' * 60}")  # noqa: T201
+            print(f"Building {i + 1}/{len(buildings)}: {building['id']}")  # noqa: T201
+            print(f"{'=' * 60}")  # noqa: T201
 
         props = extract_building_properties(
             building_id=building["id"],
@@ -228,16 +228,19 @@ def batch_extract_properties(
         all_properties.append(props)
 
     if verbose:
-        print(f"\n{'=' * 60}")
-        print(f"✓ Batch complete! Processed {len(buildings)} buildings")
-        print(f"{'=' * 60}\n")
+        print(f"\n{'=' * 60}")  # noqa: T201
+        print(f"✓ Batch complete! Processed {len(buildings)} buildings")  # noqa: T201
+        print(f"{'=' * 60}\n")  # noqa: T201
 
     return all_properties
 
 
 def save_properties_batch(
-    properties_list: list[BuildingProperties], output_dir: str = "properties", format: str = "json"
-):
+    properties_list: list[BuildingProperties],
+    output_dir: str = "properties",
+    properties_format: str = "json",
+    verbose:bool = False
+)->None:
     """
     Save a batch of properties to files.
 
@@ -249,42 +252,45 @@ def save_properties_batch(
         Directory to save files.
     format
         'json' or 'csv'.
+    verbose
+        Print progress (default = False).
 
     Examples
     --------
     >>> save_properties_batch(all_props, "output/", format="json")
     >>> save_properties_batch(all_props, "output/", format="csv")
     """
-    import os
-
     import pandas as pd
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    if format == "json":
+    Path(output_dir).mkdir(parents = True, exist_ok=True)
+    if properties_format == "json":
         for props in properties_list:
-            filepath = os.path.join(output_dir, f"{props.building_id}.json")
+            filepath:Path | str = Path(output_dir) / f"{props.building_id}.json"
             props.to_json(filepath)
-        print(f"✓ Saved {len(properties_list)} JSON files to {output_dir}/")
+        if(verbose):
+            print(f"✓ Saved {len(properties_list)} JSON files to {output_dir}/")  # noqa: T201
 
-    elif format == "csv":
+    elif properties_format == "csv":
         # Create DataFrame
         property_dicts = [p.to_dict() for p in properties_list]
         df = pd.DataFrame(property_dicts)
 
         # Save
-        filepath = os.path.join(output_dir, "all_properties.csv")
+
+        filepath = Path(output_dir) / "all_properties.csv"
         df.to_csv(filepath, index=False)
-        print(f"✓ Saved properties to {filepath}")
+        if(verbose):
+            print(f"✓ Saved properties to {filepath}") #noqa: T201
 
     else:
-        raise ValueError(f"Unknown format: {format}. Use 'json' or 'csv'")
+        msg = f"Unknown format: {properties_format}. Use 'json' or 'csv'"
+        raise ValueError(msg)
 
 
 def extract_from_image_path(
-    building_id: str, polygon: Polygon, image_path: str, mask_path: str | None = None, **kwargs
+    building_id: str, polygon: Polygon, image_path: str, mask_path: str | None = None, **kwargs:Any
 ) -> BuildingProperties:
     """
+    Extract properties from an image file path.
     Convenience function when image is a file path instead of array.
 
     Parameters

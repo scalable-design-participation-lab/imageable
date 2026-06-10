@@ -94,10 +94,7 @@ class TestImportPaths:
     def test_from_import_functions(self):
         """Test from-import of specific functions."""
         from imageable import (
-            BuildingProperties,
-            get_building_data_from_file,
             get_building_data_from_gdf,
-            get_building_data_from_geojson,
             get_dataset,
             get_image,
         )

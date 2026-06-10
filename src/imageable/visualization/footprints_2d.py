@@ -1,19 +1,22 @@
-from typing import Literal, List
+from typing import Literal, cast
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
+from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 
 def display_footprints_categorical(
     gdf: gpd.GeoDataFrame,
     column: str,
-    colors: List[str] | None = None,
-    category_order: List[str] | None = None,
-    ax: plt.Axes | None = None,
+    colors: list[str] | None = None,
+    category_order: list[str] | None = None,
+    ax: Axes | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     title_y: float = 1.14,
@@ -43,7 +46,7 @@ def display_footprints_categorical(
     basemap_attribution: bool = False,
     save_path: str | None = None,
     dpi: int = 300,
-):
+)-> None:
     created_ax = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(width, height))
@@ -193,7 +196,7 @@ def display_footprints_categorical(
         legend_rows = min(n_rows_legend, len(categories))
 
     if legend_outside and legend_on_figure:
-        fig = ax.figure
+        fig = cast(Figure, ax.figure)
         y = legend_y_offset if legend_y_offset >= 0 else 0.02
         for existing_legend in list(fig.legends):
             existing_legend.remove()
@@ -236,7 +239,7 @@ def display_footprints_continuous(
     gdf: gpd.GeoDataFrame,
     column: str,
     cmap: str,
-    ax: plt.Axes | None = None,
+    ax: Axes | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     title_y: float = 1.14,
@@ -263,7 +266,7 @@ def display_footprints_continuous(
     basemap_attribution: bool = False,
     save_path: str | None = None,
     dpi: int = 300,
-):
+)-> None:
     created_ax = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(width, height))

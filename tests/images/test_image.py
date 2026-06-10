@@ -1,7 +1,6 @@
 # Tests for image parameters
 from imageable._images.camera.camera_parameters import CameraParameters
 from imageable._images.image import ImageMetadata
-from imageable._images.camera.camera_parameters import CameraParameters
 
 
 # Test valid metadata

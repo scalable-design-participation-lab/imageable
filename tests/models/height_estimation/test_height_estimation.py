@@ -1,17 +1,17 @@
 """Tests for building height estimation module."""
 
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 from shapely import Polygon
 
 from imageable._features.height.building_height import (
-    HeightEstimationParameters,
     HeightEstimationConfig,
+    HeightEstimationParameters,
     building_height_from_single_view,
-    estimate_height_from_image,
     collect_heights,
+    estimate_height_from_image,
     mean_no_outliers,
 )
 from imageable._images.camera.camera_parameters import CameraParameters
@@ -97,9 +97,9 @@ class TestHeightEstimationParameters:
             min_sky_ratio=0.2,
             max_number_of_images=10,
         )
-        
+
         acq_config = params.to_acquisition_config()
-        
+
         assert acq_config.api_key == "test_key"
         assert acq_config.min_floor_ratio == 0.001
         assert acq_config.min_sky_ratio == 0.2
@@ -114,9 +114,9 @@ class TestHeightEstimationParameters:
             device_seg="cuda",
             verbose=True,
         )
-        
+
         est_config = params.to_estimation_config()
-        
+
         assert est_config.device_seg == "cuda"
         assert est_config.verbose is True
 
@@ -127,7 +127,7 @@ class TestHeightEstimationConfig:
     def test_default_values(self):
         """Test default configuration values."""
         config = HeightEstimationConfig()
-        
+
         assert config.device_seg == "cpu"
         assert config.device_lcnn == "cpu"
         assert config.sky_label == [0, 2]
@@ -158,7 +158,7 @@ class TestCollectHeights:
 
     def test_collect_heights_empty_results(self):
         """Test collecting heights from empty results."""
-        results = {"heights": []}
+        results: dict[str, list[dict[str, list[float]]]] = {"heights": []}
         heights = collect_heights(results)
         assert heights == []
 
@@ -230,7 +230,7 @@ class TestBuildingHeightFromSingleView:
     def mock_acquisition_result(self):
         """Create a mock acquisition result."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
         mock_camera = CameraParameters(
             longitude=-71.05,
@@ -241,7 +241,7 @@ class TestBuildingHeightFromSingleView:
             width=640,
             height=480,
         )
-        
+
         return ImageAcquisitionResult(
             image=mock_image,
             camera_params=mock_camera,
@@ -257,9 +257,9 @@ class TestBuildingHeightFromSingleView:
         """Test successful height estimation from single view."""
         mock_acquire.return_value = mock_acquisition_result
         mock_estimate.return_value = 10.5
-        
+
         height = building_height_from_single_view(sample_params)
-        
+
         assert height == 10.5
         mock_acquire.assert_called_once()
         mock_estimate.assert_called_once()
@@ -268,15 +268,15 @@ class TestBuildingHeightFromSingleView:
     def test_returns_none_when_acquisition_fails(self, mock_acquire, sample_params):
         """Test that None is returned when image acquisition fails."""
         from imageable._images.acquisition import ImageAcquisitionResult
-        
+
         mock_acquire.return_value = ImageAcquisitionResult(
             image=None,
             camera_params=CameraParameters(longitude=0, latitude=0),
             success=False,
         )
-        
+
         result = building_height_from_single_view(sample_params)
-        
+
         assert result is None
 
     @patch("imageable._features.height.building_height.acquire_building_image")
@@ -287,16 +287,16 @@ class TestBuildingHeightFromSingleView:
         """Test that acquisition receives correct configuration."""
         mock_acquire.return_value = mock_acquisition_result
         mock_estimate.return_value = 10.0
-        
+
         params = HeightEstimationParameters(
             gsv_api_key="my_key",
             footprint=sample_polygon,
             min_floor_ratio=0.001,
             min_sky_ratio=0.2,
         )
-        
+
         building_height_from_single_view(params)
-        
+
         # Check acquisition was called with correct config
         call_kwargs = mock_acquire.call_args[1]
         config = call_kwargs["config"]
@@ -346,7 +346,7 @@ class TestEstimateHeightFromImage:
             mock_segformer.return_value = mock_seg_instance
             mock_seg_instance.predict.return_value = np.zeros((480, 640), dtype=np.uint8)
             mock_seg_instance._remap_labels.return_value = np.zeros((480, 640), dtype=np.uint8)
-            
+
             # Mock LCNN
             mock_lcnn_instance = Mock()
             mock_lcnn.return_value = mock_lcnn_instance
@@ -354,24 +354,24 @@ class TestEstimateHeightFromImage:
                 "processed_lines": np.array([[0, 0, 100, 100]]),
                 "processed_scores": np.array([0.95]),
             }
-            
+
             # Mock VPTS
             mock_vpts_instance = Mock()
             mock_vpts.return_value = mock_vpts_instance
             mock_vpts_instance.predict.return_value = {
                 "vpts_2d": np.array([[320, 240], [320, 0], [0, 240]])
             }
-            
+
             # Mock height calculator
             mock_calc_instance = Mock()
             mock_calculator.return_value = mock_calc_instance
             mock_calc_instance.calculate_heights.return_value = {
                 "heights": [{"lines": [[10.5], [11.2], [10.8]]}]
             }
-            
+
             # Mock line score threshold
             mock_line_thresh.return_value = 0.5
-            
+
             yield {
                 "segformer": mock_seg_instance,
                 "lcnn": mock_lcnn_instance,
@@ -388,7 +388,7 @@ class TestEstimateHeightFromImage:
             sample_camera_params,
             sample_polygon,
         )
-        
+
         assert isinstance(height, float)
         assert height > 0
 
@@ -400,14 +400,14 @@ class TestEstimateHeightFromImage:
             device_seg="cuda",
             verbose=True,
         )
-        
+
         height = estimate_height_from_image(
             sample_image,
             sample_camera_params,
             sample_polygon,
             config=config,
         )
-        
+
         # Verify verbose was passed
         call_kwargs = mock_models["calculator"].calculate_heights.call_args[1]
         assert call_kwargs["verbose"] is True
@@ -421,7 +421,7 @@ class TestEstimateHeightFromImage:
             sample_camera_params,
             sample_polygon,
         )
-        
+
         assert result is None
 
     def test_returns_none_when_calculator_fails(
@@ -429,13 +429,13 @@ class TestEstimateHeightFromImage:
     ):
         """Test that None is returned when calculator returns None."""
         mock_models["calculator"].calculate_heights.return_value = None
-        
+
         result = estimate_height_from_image(
             sample_image,
             sample_camera_params,
             sample_polygon,
         )
-        
+
         assert result is None
 
 
