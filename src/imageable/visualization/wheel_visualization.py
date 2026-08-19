@@ -6,11 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-from matplotlib.patches import Wedge, Circle
+from matplotlib.colors import Colormap, Normalize
+from matplotlib.patches import Circle, Wedge
 from shapely import Polygon
-from matplotlib.colors import Colormap
-
+from imageable._utils.geometry.polygons import project_polygon_from_lon_lat_to_mercator
 
 
 class WheelElement:
@@ -166,7 +165,7 @@ class WheelVisualization:
                  radius_size: float = 10.0,
                  reduction_factor: float = 0.8,
                  image_scale: float = 0.33,
-                 image_outer_boost: float = 0.0,
+                 image_outer_boost: float = 0.0
                  ) -> None:
 
         self.elements = elements
@@ -206,7 +205,7 @@ class WheelVisualization:
 
     def _assign_spatial_coordinates(self) -> None:
         delta_theta = 2 * np.pi / self.n_groups
-        delta_r = self.radius_size / self.n_features
+        delta_r = (self.radius_size / self.n_features)
         self.initial_and_final_radii = []
         for e in self.elements:
             theta = delta_theta * (e.group_index + 1 + 1 / 2)
@@ -249,7 +248,13 @@ class WheelVisualization:
                    footprint_color: str = "#31cceb",
                    show_feature_colorbars: bool = True,
                    save_path: str | None = None,
-                   group_label_boost: float = 0.35) -> None:
+                   group_label_boost: float = 0.35,
+                   wedge_gamma: float = 0.8,
+                   n_ticks:int = 2,
+                   scale_polygons:bool = False,
+                   logarithmic_scaling_polygons:bool = False
+                   ) -> None:
+        
         center = (0, 0)
         radius_delta = self.radius_size / self.n_features
         radius_list = [i * radius_delta for i in range(self.n_features + 2)]
@@ -331,7 +336,8 @@ class WheelVisualization:
                     delta_angle=delta_theta,
                     delta_r=radius_delta,
                     color=color,
-                    label=label
+                    label=label,
+                    gamma = wedge_gamma
                 )
             elif isinstance(e.data, np.ndarray):
                 e.draw(
@@ -351,6 +357,29 @@ class WheelVisualization:
                     color="black"
                 )
             elif isinstance(e.data, Polygon):
+                previous_size = e.size
+                if(scale_polygons):
+                    #Get the area of the polygon
+                    polygon = e.data
+                    all_polygons = [element.data for element in self.elements if isinstance(element.data, Polygon)]
+                    projected_polygon = project_polygon_from_lon_lat_to_mercator(polygon)
+                    all_projected_polygons = [project_polygon_from_lon_lat_to_mercator(p) for p in all_polygons]
+
+                    area = projected_polygon.area
+                    all_areas = [p.area for p in all_projected_polygons]
+
+                    max_area = np.max(all_areas)
+                    if(not logarithmic_scaling_polygons):
+                        current_size = e.size
+                        #We will take the current size as the max size. 
+                        new_size = (current_size/max_area)*area
+                        e.assign_size(new_size)
+                    else:
+                        current_size = e.size
+                        new_size = current_size*(np.log(1 + area)/np.log(1 + max_area))
+                        e.assign_size(new_size)
+
+
                 e.draw(
                     ax,
                     total_radius=self.radius_size,
@@ -358,6 +387,9 @@ class WheelVisualization:
                     delta_r=radius_delta,
                     color=footprint_color
                 )
+
+                e.assign_size(previous_size)
+
 
         # group labels
         outer_label_r = self.radius_size + radius_delta * group_label_boost
@@ -437,10 +469,17 @@ class WheelVisualization:
                     norm = Normalize(vmin=vmin, vmax=vmax)
                     sm = ScalarMappable(norm=norm, cmap=cmap)
                     cb = fig.colorbar(sm, cax=cax, orientation="horizontal")
-                    cb.set_ticks([vmin, vmax])
-                    cb.set_ticklabels([f"{vmin:.2f}", f"{vmax:.2f}"])
-                    cb.ax.tick_params(labelsize=7, pad=1)
-                    tick_labels = cb.ax.get_xticklabels()
+                    tick_labels = None
+                    if(n_ticks == 2 or n_ticks == None):
+                        cb.set_ticks([vmin, vmax])
+                        cb.set_ticklabels([f"{vmin:.2f}", f"{vmax:.2f}"])
+                        cb.ax.tick_params(labelsize=7, pad=1)
+                        tick_labels = cb.ax.get_xticklabels()
+                    else:
+                        tick_values = list(np.linspace(vmin, vmax, n_ticks))
+                        cb.set_ticks(tick_values)
+                        cb.set_ticklabels([f"{val:.2f}" for val in tick_values])
+                        tick_labels = cb.ax.get_xticklabels()
                     if len(tick_labels) >= 2:
                         tick_labels[0].set_horizontalalignment("left")
                         tick_labels[-1].set_horizontalalignment("right")

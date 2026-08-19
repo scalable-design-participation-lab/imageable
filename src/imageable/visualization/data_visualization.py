@@ -6,8 +6,8 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 DRACULA_BG = "#282a36"
 DRACULA_FG = "#f8f8f2"
@@ -82,6 +82,7 @@ def plot_grouped_distribution_bars(
     model_labels: Mapping[str, str] | None = None,
     group_labels: Mapping[str, str] | None = None,
     figsize: tuple[float, float] = (8.8, 4.6),
+    value_label_fontsize: int = 8,
     show: bool = True,
     dpi:int = 300
 )->tuple[Figure, Axes]:
@@ -261,7 +262,7 @@ def plot_grouped_distribution_bars(
     # Labels
     if label_mode == "all":
         for c in containers:
-            ax.bar_label(c, fmt="%.2f", padding=2, fontsize=8, color=fg_color)
+            ax.bar_label(c, fmt="%.2f", padding=2, fontsize=value_label_fontsize, color=fg_color)
     elif label_mode == "delta_vs_best":
         for i in range(len(group_names)):
             vals = value_matrix[:, i].astype(float)

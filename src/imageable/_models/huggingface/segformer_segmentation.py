@@ -5,7 +5,7 @@ from typing import Any, cast
 import numpy as np
 import torch
 from PIL import Image
-from transformers import AutoImageProcessor, SegformerForSemanticSegmentation, BaseImageProcessor
+from transformers import AutoImageProcessor, BaseImageProcessor, SegformerForSemanticSegmentation
 
 from imageable._models.huggingface.base import HuggingFaceModelWrapper
 

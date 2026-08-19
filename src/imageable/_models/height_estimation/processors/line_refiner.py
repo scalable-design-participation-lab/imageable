@@ -121,7 +121,7 @@ class LineRefiner:
 
         t = np.sum((p - a) * (b - a)) / l2
         projection = a + t * (b - a)
-        return cast(np.ndarray, projection)
+        return cast("np.ndarray", projection)
 
     def refine_with_vpt(self, line: list[np.ndarray], vpt: np.ndarray) -> list[np.ndarray]:
         """From lineRefinement.py lines 264-279"""

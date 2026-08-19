@@ -1,17 +1,17 @@
 import json
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
 import pydeck as pdk
-from collections.abc import Callable
-from pathlib import Path
 
 
 def _load_geojson(
         geojson: str|dict[str, Any]) -> dict[Any, Any]:
     if isinstance(geojson, str):
         with open(geojson) as f:
-            return cast(dict[Any, Any], json.load(f))
+            return cast("dict[Any, Any]", json.load(f))
     return geojson
 
 
@@ -212,7 +212,7 @@ def visualize_materials(
             return None
         values = {}
         for col in material_column_names:
-            v = props.get(col, None)
+            v = props.get(col)
             if v is not None:
                 key = col.replace("mat_", "").replace("_pct", "")
                 values[key] = float(v)

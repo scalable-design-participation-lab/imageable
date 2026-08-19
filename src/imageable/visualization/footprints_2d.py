@@ -196,7 +196,7 @@ def display_footprints_categorical(
         legend_rows = min(n_rows_legend, len(categories))
 
     if legend_outside and legend_on_figure:
-        fig = cast(Figure, ax.figure)
+        fig = cast("Figure", ax.figure)
         y = legend_y_offset if legend_y_offset >= 0 else 0.02
         for existing_legend in list(fig.legends):
             existing_legend.remove()

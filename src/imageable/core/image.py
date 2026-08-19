@@ -22,9 +22,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from numpy.typing import NDArray
-from shapely.geometry import Polygon
 import numpy as np
+from shapely.geometry import Polygon
 
 from imageable._images.acquisition import (
     ImageAcquisitionConfig,

@@ -84,10 +84,10 @@ class HeightCorrectionModel(BaseModelWrapper):
             raise ValueError(msg)
 
     def _load_local(self) -> None:
-        if self.model_path is not None and self.model_path.exists():
+        if self.model_path is not None and not self.model_path.exists():
             msg = f"Model file not found: {self.model_path}"
             raise FileNotFoundError(msg)
-        if self.scaler_path is not None and self.scaler_path.exists():
+        if self.scaler_path is not None and not self.scaler_path.exists():
             msg = f"Scaler file not found: {self.scaler_path}"
             raise FileNotFoundError(msg)
         self.pretrained = joblib.load(self.model_path)

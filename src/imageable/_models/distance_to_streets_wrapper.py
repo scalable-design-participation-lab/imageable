@@ -1,11 +1,12 @@
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from huggingface_hub import hf_hub_download, try_to_load_from_cache
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
-import numpy.typing as npt
+
 from imageable._models.base import BaseModelWrapper
 
 

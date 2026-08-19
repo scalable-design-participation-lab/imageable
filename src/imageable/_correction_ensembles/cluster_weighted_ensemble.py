@@ -75,6 +75,8 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         feature_indices_used_for_clustering: list[int] | None = None,
         scale: bool = False,
         decay_constant: float = 3.0,
+        early_stopping_rounds: int | None = None,
+        min_validation_size: int = 50,
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
@@ -84,13 +86,21 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self.feature_indices_used_for_clustering = feature_indices_used_for_clustering
         self.scale = scale
         self.scaler = StandardScaler() if scale else None
+        self.early_stopping_rounds = early_stopping_rounds
+        self.min_validation_size = min_validation_size
 
         self._kmeans = None
         self._cluster_centers: np.ndarray | None = None
         self._cluster_models: list[Any] = []
         self._is_loaded = False
 
-    def load_model(self, X: np.ndarray|None = None, y: np.ndarray|None = None) -> None:
+    def load_model(
+        self,
+        X: np.ndarray|None = None,
+        y: np.ndarray|None = None,
+        X_val: np.ndarray|None = None,
+        y_val: np.ndarray|None = None,
+    ) -> None:
         """
         Fit KMeans + per-cluster regressors.
 
@@ -133,18 +143,47 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         labels = kmeans.labels_
         self._cluster_centers = kmeans.cluster_centers_
 
+        # optional early-stopping validation set, assigned to clusters the same
+        # way as the training data (only used if X_val/y_val and early_stopping_rounds are given)
+        val_labels = None
+        if X_val is not None and y_val is not None and self.early_stopping_rounds is not None:
+            X_val = np.asarray(X_val)
+            y_val = np.asarray(y_val)
+            X_val_complete = self.scaler.transform(X_val) if self.scaler is not None else X_val
+            if self.feature_indices_used_for_clustering is not None:
+                X_val_cluster = X_val_complete[:, self.feature_indices_used_for_clustering]
+            else:
+                X_val_cluster = X_val_complete
+            val_labels = kmeans.predict(X_val_cluster)
+
         # one expert per cluster, trained on full X
         self._cluster_models = []
         for k in range(self.n_clusters):
             mask = labels == k
             model = self.model_factory(k)
-            model.fit(X_complete[mask], y[mask])
+            v = val_labels == k if val_labels is not None else None
+            if v is not None and int(v.sum()) >= self.min_validation_size:
+                model.set_params(early_stopping_rounds=self.early_stopping_rounds)
+                model.fit(
+                    X_complete[mask], y[mask],
+                    eval_set=[(X_val_complete[v], y_val[v])],
+                    verbose=False,
+                )
+            else:
+                # too few validation points → skip early stopping, train full n_estimators
+                model.fit(X_complete[mask], y[mask])
             self._cluster_models.append(model)
 
         self._is_loaded = True
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "ClusterWeightedEnsembleWrapper":
-        self.load_model(X, y)
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        X_val: np.ndarray|None = None,
+        y_val: np.ndarray|None = None,
+    ) -> "ClusterWeightedEnsembleWrapper":
+        self.load_model(X, y, X_val, y_val)
         return self
 
     def is_loaded(self) -> bool:

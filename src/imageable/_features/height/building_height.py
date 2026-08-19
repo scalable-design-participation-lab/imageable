@@ -599,6 +599,11 @@ def corrected_height_from_single_view(
     if(raw_height is None):
         return None
 
+    #get_building_materials_segmentation returns {"percentages", "areas", "areas_units"}.
+    #The correction model expects the flat percentages dictionary.
+    if(isinstance(material_percentages, dict) and material_percentages.get("percentages") is not None):
+        material_percentages = material_percentages["percentages"]
+
     corrected_height = correction_model.predict(
         raw_height=raw_height,
         estimation_params=height_estimation_parameters,

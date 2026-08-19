@@ -2,6 +2,10 @@ import math
 
 import numpy as np
 from shapely import Polygon
+from pyproj import Transformer
+from shapely.ops import transform
+
+
 
 
 def get_signed_area(polygon: Polygon) -> float:
@@ -28,6 +32,15 @@ def get_signed_area(polygon: Polygon) -> float:
         area += x1 * y2 - x2 * y1
 
     return area / 2.0
+
+def project_polygon_from_lon_lat_to_mercator(
+        polygon: Polygon
+    )-> Polygon:
+
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy = True)
+    mercator_poly = transform(transformer.transform, polygon)
+
+    return mercator_poly
 
 
 def get_polygon_edge_midpoints(polygon: Polygon) -> list[tuple[float, float]]:
