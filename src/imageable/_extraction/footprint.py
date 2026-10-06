@@ -333,13 +333,15 @@ class FootprintCalculator:
         # Buffer and query
         buffer = projected_centered_footprint.buffer(radius)
         candidates_idx = tree.query(buffer)
+        # Drops every copy of the center, not just the first: list.remove() left a twin behind on
+        # duplicated input, giving a neighbour at distance 0. equals_exact, not ==, because the
+        # center is reprojected separately.
         buffered_footprints = [
-            projected_footprints[i] for i in candidates_idx if projected_footprints[i].intersects(buffer)
+            projected_footprints[i]
+            for i in candidates_idx
+            if projected_footprints[i].intersects(buffer)
+            and not projected_footprints[i].equals_exact(projected_centered_footprint, 1e-6)
         ]
-
-        # Remove the center footprint if present
-        if projected_centered_footprint in buffered_footprints:
-            buffered_footprints.remove(projected_centered_footprint)
 
         return projected_centered_footprint, buffered_footprints
 

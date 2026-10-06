@@ -1,5 +1,7 @@
 from typing import Literal, cast
 
+from imageable._version import __version__
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,8 +44,9 @@ def display_footprints_categorical(
     clip_base_to_gdf_bounds: bool = True,
     bounds_pad: float = 0.0,
     add_basemap: bool = False,
-    basemap_source: str = "CartoDB.Positron",
+    basemap_source: str = "OpenStreetMap.Mapnik",
     basemap_attribution: bool = False,
+    basemap_api_key: str | None = None,
     save_path: str | None = None,
     dpi: int = 300,
 )-> None:
@@ -105,13 +108,16 @@ def display_footprints_categorical(
     if add_basemap:
         try:
             import contextily as ctx
-            if basemap_source == "CartoDB.Positron":
-                ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron, attribution=False)
-            else:
-                provider = ctx.providers
-                for part in basemap_source.split("."):
-                    provider = provider[part]
-                ctx.add_basemap(ax, source=provider, attribution=basemap_attribution)
+            ctx.tile.USER_AGENT = f"imageable/{__version__}"
+            provider = ctx.providers
+            for part in basemap_source.split("."):
+                provider = provider[part]
+            if basemap_api_key is not None:
+                provider = provider(key=basemap_api_key)
+                if "{key}" not in provider["url"]:
+                    joiner = "&" if "?" in provider["url"] else "?"
+                    provider["url"] = f"{provider['url']}{joiner}key={{key}}"
+            ctx.add_basemap(ax, source=provider, attribution=None if basemap_attribution else False)
         except Exception as e:
             print(f"basemap failed: {e}")
 
@@ -262,8 +268,9 @@ def display_footprints_continuous(
     clip_base_to_gdf_bounds: bool = True,
     bounds_pad: float = 0.0,
     add_basemap: bool = False,
-    basemap_source: str = "CartoDB.Positron",
+    basemap_source: str = "OpenStreetMap.Mapnik",
     basemap_attribution: bool = False,
+    basemap_api_key: str | None = None,
     save_path: str | None = None,
     dpi: int = 300,
 )-> None:
@@ -322,13 +329,16 @@ def display_footprints_continuous(
     if add_basemap:
         try:
             import contextily as ctx
-            if basemap_source == "CartoDB.Positron":
-                ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron, attribution=False)
-            else:
-                provider = ctx.providers
-                for part in basemap_source.split("."):
-                    provider = provider[part]
-                ctx.add_basemap(ax, source=provider, attribution=basemap_attribution)
+            ctx.tile.USER_AGENT = f"imageable/{__version__}"
+            provider = ctx.providers
+            for part in basemap_source.split("."):
+                provider = provider[part]
+            if basemap_api_key is not None:
+                provider = provider(key=basemap_api_key)
+                if "{key}" not in provider["url"]:
+                    joiner = "&" if "?" in provider["url"] else "?"
+                    provider["url"] = f"{provider['url']}{joiner}key={{key}}"
+            ctx.add_basemap(ax, source=provider, attribution=None if basemap_attribution else False)
         except Exception as e:
             print(f"basemap failed: {e}")
 

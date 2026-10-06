@@ -254,10 +254,15 @@ def plot_grouped_distribution_bars(
     ax.set_xticklabels(tick_labels, rotation=0 if use_short_xticks else 20, ha="center" if use_short_xticks else "right")
 
     max_value = float(np.nanmax(value_matrix))
+    min_value = float(np.nanmin(value_matrix))
     label_pad = max_value * max(0.0, float(label_pad_frac))
     extra_top = label_pad * (0.45 if label_mode == "all" else (1.8 if label_mode != "none" else 0.0))
     if np.isfinite(max_value):
-        ax.set_ylim(0, max_value * (1 + max(0.0, float(ylim_pad))) + extra_top)
+        top = max_value * (1 + max(0.0, float(ylim_pad))) + extra_top
+        bottom = min(0.0, min_value * (1 + max(0.0, float(ylim_pad))) - label_pad)
+        ax.set_ylim(bottom, top)
+        if bottom < 0:
+            ax.axhline(0, color=fg_color, linewidth=0.8)
 
     # Labels
     if label_mode == "all":
@@ -394,6 +399,114 @@ def plot_styled_histogram(
         ax.set_ylim(ylim)
 
     fig.tight_layout(rect=(0, 0, 1, 0.96))
+    if savepath is not None:
+        fig.savefig(savepath, dpi=dpi, bbox_inches="tight", pad_inches=0.12)
+
+    if show:
+        plt.show()
+    return fig, ax
+
+
+def plot_time_series(
+    x: Sequence[float] | np.ndarray,
+    y: Sequence[float] | np.ndarray,
+    *,
+    title: str = "",
+    x_label: str = "",
+    y_label: str = "",
+    indexes_to_label: Sequence[int] | None = None,
+    labels: Sequence[str] | None = None,
+    color: str = "#6272a4",
+    highlight_color: str = "#ff5555",
+    linewidth: float = 2.0,
+    marker: str = "o",
+    marker_size: float = 5.0,
+    ring_size: float = 11.0,
+    label_below: bool = True,
+    label_offset: float = 34.0,
+    reference_y: float | None = None,
+    reference_color: str = "#9aa0b4",
+    xticks_every: int = 1,
+    figsize: tuple[float, float] = (11.0, 5.0),
+    title_fontsize: int = 13,
+    axis_fontsize: int = 12,
+    tick_fontsize: int = 10,
+    annotation_fontsize: int = 9,
+    grid_color: str = "#c7cbd6",
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    ax: Axes | None = None,
+    savepath: str | None = None,
+    show: bool = True,
+    dpi:int = 300,
+)->tuple[Figure, Axes]:
+    """Plot a series with selected points circled and annotated, for curves where a few points carry the argument."""
+    xs = np.asarray(x, dtype=float)
+    ys = np.asarray(y, dtype=float)
+    if xs.size == 0:
+        raise ValueError("`x` cannot be empty.")
+    if xs.size != ys.size:
+        raise ValueError("`x` and `y` must be the same length.")
+
+    positions = list(indexes_to_label or [])
+    texts = list(labels or [])
+    if texts and len(texts) != len(positions):
+        raise ValueError("`labels` must be the same length as `indexes_to_label`.")
+    if any(not 0 <= i < xs.size for i in positions):
+        raise ValueError("`indexes_to_label` holds a position outside the series.")
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        parent = ax.get_figure()
+        if not isinstance(parent, Figure):
+            raise TypeError("`ax` must belong to a Figure, not a SubFigure.")
+        fig = parent
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    ax.plot(xs, ys, color=color, linewidth=linewidth, marker=marker, markersize=marker_size)
+
+    if reference_y is not None:
+        ax.axhline(reference_y, color=reference_color, linestyle="--", linewidth=0.8)
+
+    for slot, index in enumerate(positions):
+        xi, yi = float(xs[index]), float(ys[index])
+        ax.plot(
+            [xi],
+            [yi],
+            marker=marker,
+            markersize=ring_size,
+            markerfacecolor="none",
+            markeredgecolor=highlight_color,
+            markeredgewidth=2,
+        )
+        ax.annotate(
+            texts[slot] if texts else f"{xi:g}\n{yi:.4f}",
+            (xi, yi),
+            textcoords="offset points",
+            xytext=(0, -label_offset if label_below else label_offset),
+            ha="center",
+            color=highlight_color,
+            fontsize=annotation_fontsize,
+        )
+
+    if xticks_every > 0:
+        ax.set_xticks(xs[::xticks_every])
+    ax.set_title(title, fontsize=title_fontsize, pad=16)
+    ax.set_xlabel(x_label, fontsize=axis_fontsize, labelpad=8)
+    ax.set_ylabel(y_label, fontsize=axis_fontsize, labelpad=8)
+    ax.tick_params(axis="both", labelsize=tick_fontsize)
+    ax.grid(linestyle="--", linewidth=0.8, alpha=0.25, color=grid_color)
+    for spine in ax.spines.values():
+        spine.set_color(grid_color)
+
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+
+    fig.tight_layout()
     if savepath is not None:
         fig.savefig(savepath, dpi=dpi, bbox_inches="tight", pad_inches=0.12)
 

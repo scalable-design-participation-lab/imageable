@@ -366,7 +366,10 @@ def _predict_line_score_threshold(
     _building_label: list[int] | None = None,
 ) -> float:
     """Predict optimal line score threshold based on building features."""
-    from imageable._models.line_param_selection_model import LineParameterSelectionModel
+    from imageable._models.line_param_selection_model import (
+        LineParameterSelectionModel,
+        LineScoreTableMismatchError,
+    )
 
     try:
         line_model = LineParameterSelectionModel()
@@ -390,6 +393,11 @@ def _predict_line_score_threshold(
         )
         return line_model.predict(vector.reshape(1, -1))
 
+    except LineScoreTableMismatchError:
+        # A table of the wrong length would otherwise be absorbed into the default below and change
+        # every height in the run with no error and no log line. This is the one failure here that
+        # must be loud.
+        raise
     except Exception:
         return DEFAULT_LINE_SCORE_THRESHOLD
 

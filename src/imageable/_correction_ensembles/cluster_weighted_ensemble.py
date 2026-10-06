@@ -77,6 +77,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         decay_constant: float = 3.0,
         early_stopping_rounds: int | None = None,
         min_validation_size: int = 50,
+        outside_weight_tau: float = 0.0,
     ) -> None:
         self.n_clusters = n_clusters
         self.model_factory = model_factory
@@ -88,6 +89,7 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
         self.scaler = StandardScaler() if scale else None
         self.early_stopping_rounds = early_stopping_rounds
         self.min_validation_size = min_validation_size
+        self.outside_weight_tau = outside_weight_tau
 
         self._kmeans = None
         self._cluster_centers: np.ndarray | None = None
@@ -158,20 +160,41 @@ class ClusterWeightedEnsembleWrapper(BaseModelWrapper):
 
         # one expert per cluster, trained on full X
         self._cluster_models = []
+        cluster_sizes = np.bincount(labels, minlength=self.n_clusters)
         for k in range(self.n_clusters):
             mask = labels == k
             model = self.model_factory(k)
             v = val_labels == k if val_labels is not None else None
-            if v is not None and int(v.sum()) >= self.min_validation_size:
+            # tau = 0 → the expert sees only its own cluster, as before. Above 0 it sees every
+            # building, weighted tau / (cluster size + tau) outside its own cluster.
+            if self.outside_weight_tau > 0:
+                w_out = self.outside_weight_tau / (cluster_sizes[k] + self.outside_weight_tau)
+                x_fit, y_fit = X_complete, y
+                sample_weight = np.where(mask, 1.0, w_out)
+                # it trains on every row, so it stops on every validation row, weighted the same way
+                stop = v is not None
+                x_stop = X_val_complete if stop else None
+                y_stop = y_val if stop else None
+                w_stop = np.where(v, 1.0, w_out) if stop else None
+            else:
+                x_fit, y_fit = X_complete[mask], y[mask]
+                sample_weight = None
+                stop = v is not None and int(v.sum()) >= self.min_validation_size
+                x_stop = X_val_complete[v] if stop else None
+                y_stop = y_val[v] if stop else None
+                w_stop = None
+            if stop:
                 model.set_params(early_stopping_rounds=self.early_stopping_rounds)
                 model.fit(
-                    X_complete[mask], y[mask],
-                    eval_set=[(X_val_complete[v], y_val[v])],
+                    x_fit, y_fit,
+                    sample_weight=sample_weight,
+                    eval_set=[(x_stop, y_stop)],
+                    sample_weight_eval_set=None if w_stop is None else [w_stop],
                     verbose=False,
                 )
             else:
                 # too few validation points → skip early stopping, train full n_estimators
-                model.fit(X_complete[mask], y[mask])
+                model.fit(x_fit, y_fit, sample_weight=sample_weight)
             self._cluster_models.append(model)
 
         self._is_loaded = True

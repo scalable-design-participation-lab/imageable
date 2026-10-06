@@ -11,6 +11,15 @@ from imageable._models.base import BaseModelWrapper
 from imageable._models.height_correction_model import HeightCorrectionModel
 
 
+class LineScoreTableMismatchError(RuntimeError):
+    """The line score table does not hold one value per cluster.
+
+    Raised rather than returned as a default because a table of the wrong length silently changes
+    every height in a run: the caller's fallback is a single fixed threshold, and nothing in the
+    output distinguishes it from a real per-cluster one.
+    """
+
+
 class LineParameterSelectionModel(BaseModelWrapper):
     MODEL_REPO = "walup/cluster_height_correction_model"
     VALUES_FILE = "best_line_score_params_per_cluster.pkl"
@@ -46,6 +55,15 @@ class LineParameterSelectionModel(BaseModelWrapper):
             scaled_vector = self.corr_model.scaler.transform(vector)
             weights = self.corr_model.pretrained._compute_weights(scaled_vector)
             predicted_cluster = np.argmax(weights)
+
+            n_clusters = self.corr_model.pretrained.n_clusters
+            if len(self.param_values) != n_clusters:
+                raise LineScoreTableMismatchError(
+                    f"{self.VALUES_FILE} holds {len(self.param_values)} values but the correction "
+                    f"model has {n_clusters} clusters. Re-run line_threshold_retraining.ipynb "
+                    f"against the current model, and clear ~/.cache/huggingface/hub if the table "
+                    f"came from there."
+                )
 
             return self.param_values[predicted_cluster]
         raise RuntimeError("Model not loaded. Call load_model() before predict().")
