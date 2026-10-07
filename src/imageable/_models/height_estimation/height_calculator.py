@@ -121,6 +121,10 @@ class HeightCalculator:
                 vertical_v, vline = self.vp_calc.vp_calculation_with_pitch(
                     camera.image_width, camera.image_height, cast("float", pitch), camera.focal_length
                 )
+                if(vertical_v[2] == 0):
+                    vertical_v[0] = camera.cx
+                    vertical_v[1] = -9999999
+
             else:
                 vertical_v = None
                 vline = None

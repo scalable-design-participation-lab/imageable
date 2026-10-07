@@ -9,14 +9,15 @@ class LineRefiner:
         self, pt1: np.ndarray, pt2: np.ndarray, segmt: np.ndarray, config: dict[str, Any]
     ) -> tuple[np.ndarray | list[Any], np.ndarray | list[Any]]:
         """
-        Extend a vertical line segment inside the building mask only.
+        Extend a vertical line segment to the roof and to the ground, as SIHE does.
 
-        - Ignore sky/ground labels.
-        - Use only SEGMENTATION["BuildingLabel"].
-        - Extend upward until leaving the building.
-        - Extend downward until leaving the building.
+        - Extend upward until reaching the sky.
+        - Extend downward until reaching the ground.
+        - Reject the line when the last label above the ground is not building.
         """
         building_label = int(config["SEGMENTATION"]["BuildingLabel"])
+        sky_label = np.array(config["SEGMENTATION"]["SkyLabel"].split(","), dtype=int)
+        ground_label = np.array(config["SEGMENTATION"]["GroundLabel"].split(","), dtype=int)
         edge_thres = np.array(config["LINE_REFINE"]["Edge_Thres"].split(","), dtype=int)
 
         rows, cols = segmt.shape
@@ -48,14 +49,16 @@ class LineRefiner:
             p[0] = np.clip(p[0], 0, rows - 1)
             p[1] = np.clip(p[1], 0, cols - 1)
 
-        # require endpoints to start in building
+        # require endpoints and middle point to start in building
+        pt_middle = (pt_up_end + pt_down_end) / 2.0
         if (
             segmt[int(pt_up_end[0] + 0.5), int(pt_up_end[1] + 0.5)] != building_label
             or segmt[int(pt_down_end[0] + 0.5), int(pt_down_end[1] + 0.5)] != building_label
+            or segmt[int(pt_middle[0] + 0.5), int(pt_middle[1] + 0.5)] != building_label
         ):
             return [], []
 
-        # ---- extend upward inside building until label changes ----
+        # ---- extend upward until reaching the sky ----
         pt_cur = pt_up_end.copy()
         while True:
             r = int(pt_cur[0] + 0.5)
@@ -64,15 +67,16 @@ class LineRefiner:
             if r < 0 or r >= rows or c < 0 or c >= cols:
                 break
 
-            if segmt[r, c] != building_label:
-                # last valid inside-building point is pt_up_end
+            if segmt[r, c] in sky_label:
+                # last point below the sky is pt_up_end
                 break
 
             pt_up_end = pt_cur.copy()
             pt_cur = pt_cur - direction
 
-        # ---- extend downward inside building until label changes ----
+        # ---- extend downward until reaching the ground ----
         pt_cur = pt_down_end.copy()
+        out_of_building = False
         while True:
             r = int(pt_cur[0] + 0.5)
             c = int(pt_cur[1] + 0.5)
@@ -80,10 +84,14 @@ class LineRefiner:
             if r < 0 or r >= rows or c < 0 or c >= cols:
                 break
 
-            if segmt[r, c] != building_label:
-                # last valid inside-building point is pt_down_end
+            if segmt[r, c] in ground_label:
+                if out_of_building:
+                    # something that is not building hides the base
+                    return [], []
+                # last point above the ground is pt_down_end
                 break
 
+            out_of_building = segmt[r, c] != building_label
             pt_down_end = pt_cur.copy()
             pt_cur = pt_cur + direction
 

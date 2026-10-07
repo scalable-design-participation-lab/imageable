@@ -106,7 +106,7 @@ class HeightEstimationConfig:
     lcnn_checkpoint_path: str = ""
     length_threshold: int = 60
     seed_vp_ransac: int = 42
-    sky_label: list[int] = field(default_factory=lambda: [0, 2])
+    sky_label: list[int] = field(default_factory=lambda: [2])
     building_label: list[int] = field(default_factory=lambda: [1])
     ground_label: list[int] = field(default_factory=lambda: [6, 11])
     line_classification_angle_threshold: float = 10.0
@@ -154,7 +154,7 @@ class HeightEstimationParameters:
     lcnn_checkpoint_path: str = ""
     length_threshold: int = 60
     seed_vp_ransac: int = 42
-    sky_label: list[int] = field(default_factory=lambda: [0, 2])
+    sky_label: list[int] = field(default_factory=lambda: [2])
     building_label: list[int] = field(default_factory=lambda: [1])
     ground_label: list[int] = field(default_factory=lambda: [6, 11])
     line_classification_angle_threshold: float = 10.0

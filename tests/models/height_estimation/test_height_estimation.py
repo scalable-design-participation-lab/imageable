@@ -65,7 +65,7 @@ class TestHeightEstimationParameters:
         polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
         params = HeightEstimationParameters(gsv_api_key="test_key", footprint=polygon)
 
-        assert params.sky_label == [0, 2]
+        assert params.sky_label == [2]
         assert params.building_label == [1]
         assert params.ground_label == [6, 11]
 
@@ -130,7 +130,7 @@ class TestHeightEstimationConfig:
 
         assert config.device_seg == "cpu"
         assert config.device_lcnn == "cpu"
-        assert config.sky_label == [0, 2]
+        assert config.sky_label == [2]
         assert config.building_label == [1]
         assert config.verbose is False
 
