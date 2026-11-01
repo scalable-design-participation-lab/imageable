@@ -8,6 +8,7 @@ single-view metrology techniques applied to street-level imagery.
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -55,6 +56,9 @@ class HeightEstimationConfig:
     ----------
     segformer_name
         Name of the SegFormer model for building segmentation.
+    segmentation_model
+        Model whose predict function returns the labeled image (H, W) of an RGB image, with the labels below.
+        If None, or if it has no predict function or returns no labeled image, SegFormer segments the image.
     palette_path
         Path to the palette file for visualization.
     device_seg
@@ -96,6 +100,7 @@ class HeightEstimationConfig:
     """
 
     segformer_name: str = "nvidia/segformer-b5-finetuned-ade-640-640"
+    segmentation_model: Any = None
     palette_path: str = str(Path(__file__).resolve().parents[2] / "assets" / "ade20k_palette.json")
     device_seg: str = "cpu"
     remapping_dict: dict[int, int] = field(
@@ -266,17 +271,22 @@ def estimate_height_from_image(
         return None
 
     # Load and run segmentation
-    segmentation_model = SegformerSegmentationWrapper(
-        model_name=config.segformer_name,
-        device=config.device_seg,
-        palette_path=config.palette_path,
-    )
-    segmentation_model.load_model()
+    remapped_seg: NDArray[np.int_] | None = None
+    if config.segmentation_model is not None:
+        remapped_seg = _labeled_image_from_model(config.segmentation_model, image)
 
-    seg_results = segmentation_model.predict(image)
-    if config.shift_segmentation_labels:
-        seg_results = seg_results.squeeze().astype("uint8") + 1
-    remapped_seg = segmentation_model._remap_labels(seg_results, config.remapping_dict)
+    if remapped_seg is None:
+        segmentation_model = SegformerSegmentationWrapper(
+            model_name=config.segformer_name,
+            device=config.device_seg,
+            palette_path=config.palette_path,
+        )
+        segmentation_model.load_model()
+
+        seg_results = segmentation_model.predict(image)
+        if config.shift_segmentation_labels:
+            seg_results = seg_results.squeeze().astype("uint8") + 1
+        remapped_seg = segmentation_model._remap_labels(seg_results, config.remapping_dict)
 
     # Line detection with LCNN
     lcnn_model = LCNNWrapper(
@@ -400,6 +410,27 @@ def _predict_line_score_threshold(
         raise
     except Exception:
         return DEFAULT_LINE_SCORE_THRESHOLD
+
+
+def _labeled_image_from_model(segmentation_model: Any, image: NDArray[np.uint8]) -> NDArray[np.int_] | None:
+    """Return the labeled image of a user model, or None if it has no predict function or returns no labeled image."""
+    if not callable(getattr(segmentation_model, "predict", None)):
+        warnings.warn("The segmentation model has no predict function. Using SegFormer instead.", stacklevel=3)
+        return None
+
+    labeled_image = segmentation_model.predict(image)
+    if (
+        not isinstance(labeled_image, np.ndarray)
+        or labeled_image.shape != image.shape[:2]
+        or not np.issubdtype(labeled_image.dtype, np.integer)
+    ):
+        warnings.warn(
+            "The segmentation model did not return a labeled image (H, W) of integers. Using SegFormer instead.",
+            stacklevel=3,
+        )
+        return None
+
+    return labeled_image
 
 
 def building_height_from_single_view(
