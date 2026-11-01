@@ -12,7 +12,7 @@ from imageable._features.height.building_height import (
     building_height_from_single_view,
     collect_heights,
     estimate_height_from_image,
-    mean_no_outliers,
+    aggregation_no_outliers,
 )
 from imageable._images.camera.camera_parameters import CameraParameters
 
@@ -170,37 +170,37 @@ class TestCollectHeights:
 
 
 class TestMeanNoOutliers:
-    """Test suite for mean_no_outliers function."""
+    """Test suite for aggregation_no_outliers function."""
 
     def test_mean_no_outliers_no_outliers(self):
         """Test mean calculation when there are no outliers."""
         values = [10.0, 10.5, 11.0, 10.2, 10.8]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         assert result == pytest.approx(10.5, abs=0.1)
 
     def test_mean_no_outliers_with_outliers(self):
         """Test mean calculation filtering out outliers."""
         values = [10.0, 10.5, 11.0, 10.2, 10.8, 50.0, 1.0]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         # Should exclude 50.0 and 1.0 as outliers
         assert result == pytest.approx(10.5, abs=0.3)
 
     def test_mean_no_outliers_all_same_values(self):
         """Test mean calculation when all values are the same."""
         values = [10.0, 10.0, 10.0, 10.0]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         assert result == pytest.approx(10.0)
 
     def test_mean_no_outliers_single_value(self):
         """Test mean calculation with a single value."""
         values = [10.0]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         assert result == pytest.approx(10.0)
 
     def test_mean_no_outliers_with_extreme_outlier(self):
         """Test that extreme outliers are properly filtered."""
         values = [9.5, 10.0, 10.5, 11.0, 10.2, 100.0]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         # 100.0 should be filtered out
         assert 9.0 < result < 11.5
 
@@ -208,7 +208,7 @@ class TestMeanNoOutliers:
         """Test that IQR-based filtering works correctly."""
         # Q1=10, Q3=20, IQR=10, lower=-5, upper=35
         values = [10.0, 15.0, 20.0, -10.0, 40.0]
-        result = mean_no_outliers(values)
+        result = aggregation_no_outliers(values)
         # Should exclude -10.0 and 40.0
         assert result == pytest.approx(15.0)
 

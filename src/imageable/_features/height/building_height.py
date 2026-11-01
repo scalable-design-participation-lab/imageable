@@ -11,7 +11,7 @@ import json
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,6 +42,7 @@ MIN_FOCAL_LENGTH = 1
 MAX_FOCAL_LENGTH = 5000
 DEFAULT_FOCAL_LENGTH = 90
 DEFAULT_LINE_SCORE_THRESHOLD = 0.1
+HEURISTICS = {"Mean": np.mean, "Median": np.median, "Min": np.min, "Max": np.max}
 
 
 @dataclass
@@ -97,6 +98,8 @@ class HeightEstimationConfig:
         Use only pitch for height estimation.
     use_detected_vpt_only
         Use only detected vanishing point.
+    heuristic
+        Statistic that combines the per-line heights after outlier removal: "Mean", "Median", "Min" or "Max".
     """
 
     segformer_name: str = "nvidia/segformer-b5-finetuned-ade-640-640"
@@ -122,6 +125,7 @@ class HeightEstimationConfig:
     verbose: bool = False
     use_pitch_only: bool = False
     use_detected_vpt_only: bool = False
+    heuristic: Literal["Mean", "Median", "Min", "Max"] = "Mean"
 
 
 @dataclass
@@ -173,6 +177,7 @@ class HeightEstimationParameters:
     all_buildings: list[Polygon] | None = None
     image: NDArray[np.uint8] | None = None
     camera_parameters: GSVCameraParameters | None = None
+    heuristic: Literal["Mean", "Median", "Min", "Max"] = "Mean"
 
     def to_acquisition_config(self) -> ImageAcquisitionConfig:
         """Convert to ImageAcquisitionConfig."""
@@ -211,6 +216,7 @@ class HeightEstimationParameters:
             verbose=self.verbose,
             use_pitch_only=self.use_pitch_only,
             use_detected_vpt_only=self.use_detected_vpt_only,
+            heuristic=self.heuristic,
         )
 
 
@@ -367,7 +373,7 @@ def estimate_height_from_image(
     if len(heights) == 0:
         return None
 
-    return mean_no_outliers(heights)
+    return aggregation_no_outliers(heights, heuristic=config.heuristic)
 
 
 def _predict_line_score_threshold(
@@ -698,28 +704,41 @@ def count_filtered_lines(results: dict[str, Any]) -> int:
     return sum(len(building["lines"]) for building in results["heights"])
 
 
-def mean_no_outliers(values: list[float] | NDArray[np.floating]) -> float:
+def aggregation_no_outliers(
+    values: list[float] | NDArray[np.floating], heuristic: Literal["Mean", "Median", "Min", "Max"] = "Mean"
+) -> float:
     """
-    Compute the mean of a list of values after removing outliers using
+    Aggregate a list of values with a heuristic after removing outliers using
     the interquartile range (IQR) method.
 
     Parameters
     ----------
     values
         List of numerical values.
+    heuristic
+        Statistic applied to the remaining values: "Mean", "Median", "Min" or "Max".
 
     Returns
     -------
-    mean_value
-        Mean of the values after outlier removal.
+    aggregated_value
+        The heuristic applied to the values after outlier removal.
+
+    Raises
+    ------
+    ValueError
+        If `heuristic` is not a key of `HEURISTICS`.
     """
+    if heuristic not in HEURISTICS:
+        msg = f"Unknown heuristic {heuristic!r}. Use one of {list(HEURISTICS)}."
+        raise ValueError(msg)
+
     values = np.array(values)
     q1, q3 = np.percentile(values, [25, 75])
     iqr = q3 - q1
     lower = q1 - 1.5 * iqr
     upper = q3 + 1.5 * iqr
     filtered = values[(values >= lower) & (values <= upper)]
-    return float(np.mean(filtered))
+    return float(HEURISTICS[heuristic](filtered))
 
 
 def estimate_height_and_lines_from_image(
@@ -815,6 +834,6 @@ def estimate_height_and_lines_from_image(
     if len(heights) == 0:
         return None, 0
 
-    height_estimate: float = mean_no_outliers(heights)
+    height_estimate: float = aggregation_no_outliers(heights)
     n_lines: int = count_filtered_lines(results)
     return height_estimate, n_lines
