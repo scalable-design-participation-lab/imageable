@@ -179,6 +179,7 @@ class HeightEstimationParameters:
     image: NDArray[np.uint8] | None = None
     camera_parameters: GSVCameraParameters | None = None
     heuristic: Literal["Mean", "Median", "Min", "Max"] = "Mean"
+    segmentation_model: Any = None
 
     def to_acquisition_config(self) -> ImageAcquisitionConfig:
         """Convert to ImageAcquisitionConfig."""
@@ -218,6 +219,7 @@ class HeightEstimationParameters:
             use_pitch_only=self.use_pitch_only,
             use_detected_vpt_only=self.use_detected_vpt_only,
             heuristic=self.heuristic,
+            segmentation_model=self.segmentation_model,
         )
 
 
@@ -519,12 +521,13 @@ def corrected_height_from_single_view(
     crs: int = 4326,
     verbose: bool = False,
     correction_model: HeightCorrectionModel | None = None,
+    raw_height: float | None = None,
 ) -> float|None:
     """
     Compute a corrected building height from a single Street View image.
 
     This function:
-    1. Computes the raw height using `building_height_from_single_view`.
+    1. Computes the raw height using `building_height_from_single_view`, unless `raw_height` is given.
     2. Loads the image and metadata from cache.
     3. Computes material percentages from the image.
     4. Applies a correction model to refine the height estimate.
@@ -540,7 +543,8 @@ def corrected_height_from_single_view(
     correction_model.load_model()
 
     # Get raw height estimate
-    raw_height = building_height_from_single_view(height_estimation_parameters)
+    if raw_height is None:
+        raw_height = building_height_from_single_view(height_estimation_parameters)
 
     # Try to load image and compute material percentages
     street_view_image = None

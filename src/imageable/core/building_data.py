@@ -28,7 +28,7 @@ from imageable._images.image import CameraParameters  # type: ignore[attr-define
 
 # Type aliases
 OutputFormat = Literal["gdf", "geojson", "dict"]
-HeightMode = Literal["svi", "cluster_then_predict","footprint_based"]
+HeightMode = Literal["svi", "cluster_then_predict", "cluster_then_predict_yolo","footprint_based"]
 ProviderType = Literal["google_street_view"]
 
 
@@ -363,9 +363,10 @@ def _extract_building_data_core(
 
         # Estimate height when API key is available or local cache is present
         height = None
+        svi_height = None
         if images_dir and has_image:
             camera_parameters_dictionary = metadata.get("camera_parameters", None) if metadata is not None else None
-            height = _estimate_height(
+            height, svi_height = _estimate_height(
                 polygon,
                 "",
                 building_id=building_id,
@@ -380,7 +381,7 @@ def _extract_building_data_core(
             if verbose:
                 print("  Estimating height...")
             camera_parameters_dictionary = metadata.get("camera_parameters", None) if metadata is not None else None
-            height = _estimate_height(
+            height, svi_height = _estimate_height(
                 polygon,
                 image_key,
                 building_id=building_id,
@@ -458,6 +459,7 @@ def _extract_building_data_core(
             material_areas = areas_dict,
             material_areas_units = units
         )
+        props.svi_height = float(svi_height) if svi_height is not None else -1.0
 
         results.append(props)
 
@@ -607,7 +609,7 @@ def _estimate_height(
         camera_parameters: dict[str, Any] | None = None,
         height_mode: HeightMode = "svi",
         provider: ProviderType = "google_street_view",
-) -> float | None:
+) -> tuple[float | None, float | None]:
     from imageable._features.height.building_height import (
         HeightEstimationParameters,
         building_height_from_single_view,
@@ -615,12 +617,14 @@ def _estimate_height(
         estimate_height_from_image,
     )
     from imageable._images.camera.camera_parameters import CameraParameters as GSVCameraParameters
+    from imageable._models.huggingface.yolo_segmentation import YOLOSegmentationWrapper
 
-    if(provider != "google_street_view" and height_mode in ("svi", "cluster_then_predict")):  # type: ignore[unreachable]
+    if(provider != "google_street_view" and height_mode in ("svi", "cluster_then_predict", "cluster_then_predict_yolo")):  # type: ignore[unreachable]
         if(verbose):  # type: ignore[unreachable]
             print("  Height estimation is currently only supported for Google Street View imagery. Skipping height estimation.")
-        return None
+        return None, None
 
+    svi_height = None
     try:
         params = HeightEstimationParameters(
             gsv_api_key=api_key,
@@ -633,6 +637,9 @@ def _estimate_height(
 
         if all_buildings is not None:
             params.all_buildings = all_buildings
+
+        if height_mode == "cluster_then_predict_yolo":
+            params.segmentation_model = YOLOSegmentationWrapper()
 
         if image is not None:
             if isinstance(camera_parameters, dict):
@@ -660,35 +667,43 @@ def _estimate_height(
             params.camera_parameters = camera_params
 
             # Only compute the raw single-view height for modes that consume it
-            # directly. cluster_then_predict recomputes (and corrects) its own raw
-            # height inside corrected_height_from_single_view, so computing it here
+            # directly. cluster_then_predict computes its raw height below and passes
+            # it to corrected_height_from_single_view, so computing it here
             # would run the full pipeline twice.
             if height_mode == "svi":
-                return estimate_height_from_image(
+                svi_height = estimate_height_from_image(
                     image=image,
                     camera_params=camera_params,
                     polygon=polygon,
                     config=params.to_estimation_config(),
                     all_buildings=getattr(params, "all_buildings", None),
                 )
+                return svi_height, svi_height
         elif height_mode == "svi":
-            return building_height_from_single_view(params)
+            svi_height = building_height_from_single_view(params)
+            return svi_height, svi_height
 
-        if height_mode == "cluster_then_predict":
-            return corrected_height_from_single_view(
+        if height_mode in ("cluster_then_predict", "cluster_then_predict_yolo"):
+            svi_height = building_height_from_single_view(params)
+            if svi_height is None:
+                return None, None
+            corrected_height = corrected_height_from_single_view(
                 params,
                 building_id,
                 all_buildings=getattr(params, "all_buildings", None) or [],
                 verbose=verbose,
+                raw_height=svi_height,
             )
+            return corrected_height, svi_height
         if height_mode == "footprint_based":
             if verbose:
                 print("Footprint-based ")
-            return None
+            return None, None
     except Exception as e:
         if verbose:
             print("_estimate_height error:", e)
-        return None
+        return None, svi_height
+    return None, None
 
 
 

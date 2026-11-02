@@ -53,6 +53,7 @@ class BuildingProperties:
 
     # ========== Height Estimation ==========
     building_height: float = -1.0  # -1 indicates height could not be calculated
+    svi_height: float = -1.0
 
     # ========== Material Percentages ==========
     material_percentages: dict[str, float] = field(default_factory=dict)
