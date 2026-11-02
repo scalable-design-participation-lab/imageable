@@ -59,6 +59,7 @@ class HeightEstimationConfig:
         Name of the SegFormer model for building segmentation.
     segmentation_model
         Model whose predict function returns the labeled image (H, W) of an RGB image, with the labels below.
+        A SegformerSegmentationWrapper gets the same label shift and remap as the default SegFormer.
         If None, or if it has no predict function or returns no labeled image, SegFormer segments the image.
     palette_path
         Path to the palette file for visualization.
@@ -278,16 +279,21 @@ def estimate_height_from_image(
 
     # Load and run segmentation
     remapped_seg: NDArray[np.int_] | None = None
+    segmentation_model: SegformerSegmentationWrapper | None = None
     if config.segmentation_model is not None:
-        remapped_seg = _labeled_image_from_model(config.segmentation_model, image)
+        if isinstance(config.segmentation_model, SegformerSegmentationWrapper):
+            segmentation_model = config.segmentation_model
+        else:
+            remapped_seg = _labeled_image_from_model(config.segmentation_model, image)
 
     if remapped_seg is None:
-        segmentation_model = SegformerSegmentationWrapper(
-            model_name=config.segformer_name,
-            device=config.device_seg,
-            palette_path=config.palette_path,
-        )
-        segmentation_model.load_model()
+        if segmentation_model is None:
+            segmentation_model = SegformerSegmentationWrapper(
+                model_name=config.segformer_name,
+                device=config.device_seg,
+                palette_path=config.palette_path,
+            )
+            segmentation_model.load_model()
 
         seg_results = segmentation_model.predict(image)
         if config.shift_segmentation_labels:
